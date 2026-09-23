@@ -13,11 +13,13 @@ import {
   type LensModel,
 } from "@/lib/face/camera-optics";
 import { liveMeshIsFresh, resolveCaptureFaces } from "@/lib/face/capture-route";
+import { sideGuide, threeQuarterGuide } from "@/lib/face/capture-outline";
 import {
   assessCaptureAlignment,
   captureGuideBox,
   summarizeLiveFaces,
   type CaptureAssessment,
+  type CaptureView,
   type GuideBox,
   type LiveFaceSummary,
 } from "@/lib/face/capture-guide";
@@ -36,7 +38,7 @@ import {
 import { detectCanvas, detectLiveFace, retainLiveFaceLandmarker } from "@/lib/mediapipe/face-landmarker";
 import { createSessionLease } from "@/lib/mediapipe/session-lease";
 import { cn } from "@/lib/utils";
-import type { FaceView, RawFaceLandmark } from "@/types/face";
+import type { RawFaceLandmark } from "@/types/face";
 
 const cameraLease = createSessionLease<MediaStream>({
   graceMs: 500,
@@ -73,7 +75,7 @@ export interface CameraCaptureResult {
 
 type CameraPhase = "starting" | "live" | "blocked" | "missing" | "unavailable";
 
-function idleAssessment(view: FaceView): CaptureAssessment {
+function idleAssessment(view: CaptureView): CaptureAssessment {
   return assessCaptureAlignment({
     view,
     faceCount: 0,
@@ -94,7 +96,7 @@ export function CameraCapture({
   view,
   onCapture,
 }: {
-  view: FaceView;
+  view: CaptureView;
   onCapture: (result: CameraCaptureResult) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -278,7 +280,7 @@ export function CameraCapture({
     }
     const summary = summarizeLiveFaces(faces, { width, height }, lensRef.current);
     const currentView = viewRef.current;
-    if (currentView === "profile" && summary.faceCount === 1) {
+    if (currentView !== "front" && summary.faceCount === 1) {
       facingRef.current = nextProfileFacing(
         facingRef.current,
         summary.pose.yaw,
@@ -310,7 +312,7 @@ export function CameraCapture({
     setLive(summary.faceCount > 0 ? summary : null);
     setAssessment(next);
     if (next.status !== "ready") pauseAuto.current = false;
-    const holdMs = currentView === "profile" ? PROFILE_STABLE_MS : FRONT_STABLE_MS;
+    const holdMs = currentView === "front" ? FRONT_STABLE_MS : PROFILE_STABLE_MS;
     const stepped = advanceStability(clockRef.current, next.status === "ready", detectedAt, holdMs, POSE_GRACE_MS);
     clockRef.current = stepped.clock;
     if (!stepped.armed || pauseAuto.current || shooting.current) {
@@ -407,7 +409,7 @@ export function CameraCapture({
         live,
         capturedAt,
         captureFrame,
-        detectStill: async () => (await detectCanvas(canvas, viewRef.current)).faces,
+        detectStill: async () => (await detectCanvas(canvas, viewRef.current === "front" ? "front" : "profile")).faces,
       });
       markCapture("face-detection-end");
       measureCapture("face-detection", "face-detection-start", "face-detection-end");
@@ -496,7 +498,7 @@ function GuideGraphic({
 }: {
   width: number;
   height: number;
-  view: FaceView;
+  view: CaptureView;
   facing: "left" | "right" | null;
   status: CaptureAssessment["status"];
   live: LiveFaceSummary | null;
@@ -514,8 +516,10 @@ function GuideGraphic({
     >
       {view === "front" ? (
         <FrontGuide box={box} stroke={stroke} weight={weight} />
+      ) : view === "threeQuarter" ? (
+        <ThreeQuarterGuide box={box} stroke={stroke} weight={weight} facing={facing} />
       ) : (
-        <ProfileGuide box={box} stroke={stroke} weight={weight} facing={facing} />
+        <SideGuide box={box} stroke={stroke} weight={weight} facing={facing} />
       )}
       {live && live.oval.length > 2 ? (
         <polygon
@@ -569,7 +573,7 @@ function FrontGuide({ box, stroke, weight }: { box: GuideBox; stroke: string; we
   );
 }
 
-function ProfileGuide({
+function ThreeQuarterGuide({
   box,
   stroke,
   weight,
@@ -580,20 +584,80 @@ function ProfileGuide({
   weight: number;
   facing: "left" | "right" | null;
 }) {
-  const eyeY = box.top + box.faceH * 0.42;
+  const guide = threeQuarterGuide(facing ?? "right");
   return (
-    <g fill="none" stroke={stroke} strokeWidth={weight} strokeLinecap="round">
-      <path d={brackets(box, weight * 8)} />
-      <line
-        x1={box.left + box.faceW * 0.08}
-        y1={eyeY}
-        x2={box.left + box.faceW * 0.92}
-        y2={eyeY}
-        strokeDasharray={`${weight * 1.5} ${weight * 2.5}`}
+    <g fill="none" stroke={stroke} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round">
+      <path d={brackets(box, weight * 6)} />
+      <path d={mapUnitPath(box, guide.head)} />
+      <path d={mapUnitPath(box, guide.ear)} />
+      <path d={mapUnitPath(box, guide.nose)} />
+      <ellipse
+        cx={box.left + guide.farEye.cx * box.faceW}
+        cy={box.top + guide.farEye.cy * box.faceH}
+        rx={guide.farEye.rx * box.faceW}
+        ry={guide.farEye.ry * box.faceH}
       />
-      <TurnCue box={box} facing={facing} weight={weight} />
+      <ellipse
+        cx={box.left + guide.nearEye.cx * box.faceW}
+        cy={box.top + guide.nearEye.cy * box.faceH}
+        rx={guide.nearEye.rx * box.faceW}
+        ry={guide.nearEye.ry * box.faceH}
+      />
+      <line
+        x1={box.left + guide.mouth.x1 * box.faceW}
+        y1={box.top + guide.mouth.y1 * box.faceH}
+        x2={box.left + guide.mouth.x2 * box.faceW}
+        y2={box.top + guide.mouth.y2 * box.faceH}
+      />
+      {facing ? null : <TurnCue box={box} facing={null} weight={weight} />}
     </g>
   );
+}
+
+function SideGuide({
+  box,
+  stroke,
+  weight,
+  facing,
+}: {
+  box: GuideBox;
+  stroke: string;
+  weight: number;
+  facing: "left" | "right" | null;
+}) {
+  const guide = sideGuide(facing ?? "right");
+  const pupil = weight * 1.6;
+  return (
+    <g fill="none" stroke={stroke} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round">
+      <path d={brackets(box, weight * 6)} />
+      <path d={mapUnitPath(box, guide.outline)} />
+      <path d={mapUnitPath(box, guide.ear)} />
+      <path d={mapUnitPath(box, guide.brow)} />
+      <line
+        x1={box.left + guide.frankfort.x1 * box.faceW}
+        y1={box.top + guide.frankfort.y1 * box.faceH}
+        x2={box.left + guide.frankfort.x2 * box.faceW}
+        y2={box.top + guide.frankfort.y2 * box.faceH}
+        strokeDasharray={`${weight * 1.5} ${weight * 2.5}`}
+      />
+      <ellipse
+        cx={box.left + guide.eye.cx * box.faceW}
+        cy={box.top + guide.eye.cy * box.faceH}
+        rx={guide.eye.rx * box.faceW}
+        ry={guide.eye.ry * box.faceH}
+      />
+      <circle cx={box.left + guide.eye.cx * box.faceW} cy={box.top + guide.eye.cy * box.faceH} r={pupil} fill={stroke} />
+      {facing ? null : <TurnCue box={box} facing={null} weight={weight} />}
+    </g>
+  );
+}
+
+function mapUnitPath(box: GuideBox, path: string): string {
+  return path.replace(/(-?\d*\.?\d+) (-?\d*\.?\d+)/g, (_match, x: string, y: string) => {
+    const px = box.left + Number(x) * box.faceW;
+    const py = box.top + Number(y) * box.faceH;
+    return `${px.toFixed(1)} ${py.toFixed(1)}`;
+  });
 }
 
 function TurnCue({

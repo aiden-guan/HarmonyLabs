@@ -1,6 +1,6 @@
 import type { FaceView, PhotoQuality, RawFaceLandmark } from "@/types/face";
 import { MP } from "@/lib/face/mediapipe-map";
-import { classifyProfilePose } from "@/lib/face/profile-pose";
+import { classifyProfilePose, isTrueSidePose } from "@/lib/face/profile-pose";
 
 export interface PoseEstimate {
   yaw: number | null;
@@ -232,15 +232,14 @@ export function evaluatePhotoQuality(input: {
   }
 
   if (input.view === "profile") {
-    const pose = classifyProfilePose(yaw, input.profileCue ?? { eyeCollapse: null, noseLead: null });
-    if (pose === "nearlyLateral") {
-      warnings.push(
-        "The face is not fully sideways yet. A true side view keeps these angles steady. You can check the points on the next screen.",
-      );
-    } else if (pose !== "lateral") {
+    const cue = input.profileCue ?? { eyeCollapse: null, noseLead: null };
+    const pose = classifyProfilePose(yaw, cue);
+    if (!isTrueSidePose(yaw, cue)) {
       hardError =
         hardError ??
-        "This is not a side view yet. Turn your head 90° until the far eyebrow is hidden and look straight ahead.";
+        (pose === "lateral" || pose === "nearlyLateral"
+          ? "This is still a three-quarter view. Turn your head 90° until the far eyebrow is hidden."
+          : "This is not a side view yet. Turn your head 90° until the far eyebrow is hidden and look straight ahead.");
     }
     if (input.frankfortTilt != null && Math.abs(input.frankfortTilt) > 15) {
       warnings.push(

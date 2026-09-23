@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   advanceStability,
   classifyProfilePose,
+  isTrueSidePose,
   nextProfileFacing,
   profilePoseMessage,
   screenTurnDirection,
+  sidePoseMessage,
 } from "@/lib/face/profile-pose";
 
 const lateralCue = { eyeCollapse: 0.9, noseLead: 0.22 };
@@ -36,6 +38,17 @@ describe("profile pose", () => {
     expect(profilePoseMessage("threeQuarter")).toMatch(/farther/);
     expect(profilePoseMessage("nearlyLateral")).toMatch(/slightly/);
     expect(profilePoseMessage("frontal")).toMatch(/either side/);
+  });
+
+  it("keeps a three-quarter turn out of the side-profile stage", () => {
+    expect(isTrueSidePose(58, lateralCue)).toBe(true);
+    expect(isTrueSidePose(-62, lateralCue)).toBe(true);
+    expect(isTrueSidePose(36, { eyeCollapse: 0.86, noseLead: 0.22 })).toBe(false);
+    expect(isTrueSidePose(46, { eyeCollapse: 0.76, noseLead: 0.12 }, true)).toBe(false);
+    expect(isTrueSidePose(50, { eyeCollapse: 0.86, noseLead: 0.15 }, false)).toBe(false);
+    expect(isTrueSidePose(50, { eyeCollapse: 0.86, noseLead: 0.15 }, true)).toBe(true);
+    expect(sidePoseMessage(36, { eyeCollapse: 0.86, noseLead: 0.22 })).toMatch(/fully sideways/);
+    expect(sidePoseMessage(58, lateralCue)).toMatch(/Good side profile/);
   });
 
   it("does not promote a three-quarter pose just because the previous frame was stable", () => {

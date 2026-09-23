@@ -78,7 +78,7 @@ pnpm test:e2e
 
 End-to-end tests start the app on port 3010 with the detector fixture enabled. Install Playwright's Chromium once with `pnpm exec playwright install chromium`.
 
-Headless tests cover upload, landmark review, and the report. A phone camera cannot be validated there. On a device, check both front and profile: the profile step should appear as soon as the front photo is accepted, the preview should feel like a mirror, a three-quarter turn should not auto-capture, and a true side view should.
+Headless tests cover upload, landmark review, and the report. A phone camera cannot be validated there. On a device, check front, three-quarter, and side: the three-quarter step should appear as soon as the front photo is accepted, the preview should feel like a mirror, a halfway turn should capture on the three-quarter step, and only a true side view should capture on the side step.
 
 ## Omitted on purpose
 

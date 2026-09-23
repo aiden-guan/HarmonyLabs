@@ -126,7 +126,7 @@ describe("photo quality", () => {
       mirrored: false,
       profileCue: { eyeCollapse: 0.86, noseLead: 0.22 },
     });
-    expect(stacked.hardError).toBeNull();
+    expect(stacked.hardError).toMatch(/three-quarter/);
     expect(classifyProfilePose(61, { eyeCollapse: null, noseLead: null })).toBe("nearlyLateral");
 
     const near = evaluatePhotoQuality({
@@ -140,8 +140,7 @@ describe("photo quality", () => {
       facialHeight: 0.5,
       profileCue: { eyeCollapse: 0.68, noseLead: 0.12 },
     });
-    expect(near.hardError).toBeNull();
-    expect(near.quality.warnings.some((warning) => warning.includes("not fully sideways"))).toBe(true);
+    expect(near.hardError).toMatch(/three-quarter/);
   });
 
   it("warns on mild tilt without blocking", () => {

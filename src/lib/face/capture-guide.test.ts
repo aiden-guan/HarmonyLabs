@@ -6,9 +6,10 @@ import {
   faceOvalPoints,
   summarizeLiveFaces,
 } from "@/lib/face/capture-guide";
-import type { FaceView, RawFaceLandmark } from "@/types/face";
+import type { CaptureView } from "@/lib/face/capture-guide";
+import type { RawFaceLandmark } from "@/types/face";
 
-function aligned(view: FaceView, patch?: Partial<Parameters<typeof assessCaptureAlignment>[0]>) {
+function aligned(view: CaptureView, patch?: Partial<Parameters<typeof assessCaptureAlignment>[0]>) {
   return assessCaptureAlignment({
     view,
     faceCount: 1,
@@ -40,7 +41,18 @@ describe("capture guide", () => {
     expect(aligned("front").status).toBe("ready");
     expect(aligned("front").message).toMatch(/Hold still/);
     expect(aligned("profile").status).toBe("ready");
-    expect(aligned("profile").message).toMatch(/Good profile/);
+    expect(aligned("profile").message).toMatch(/Good side profile/);
+    const threeQuarterTurn = aligned("threeQuarter", {
+      pose: { yaw: 36, pitch: 0, roll: 0 },
+      eyeCollapse: 0.86,
+      noseLead: 0.22,
+      facialHeight: 0.5,
+    });
+    expect(threeQuarterTurn.status).toBe("ready");
+    expect(threeQuarterTurn.message).toMatch(/three-quarter/);
+    expect(aligned("profile", { pose: { yaw: 36, pitch: 0, roll: 0 }, eyeCollapse: 0.86, noseLead: 0.22 }).status).toBe(
+      "adjust",
+    );
     expect(aligned("profile", { facesLeft: true }).profileFacing).toBe("left");
     const threeQuarter = aligned("profile", {
       pose: { yaw: 22, pitch: 0, roll: 0 },
@@ -59,7 +71,7 @@ describe("capture guide", () => {
     });
     expect(near.status).toBe("adjust");
     expect(near.profilePose).toBe("nearlyLateral");
-    expect(near.message).toMatch(/slightly/);
+    expect(near.message).toMatch(/fully sideways/);
     const frontalProfile = aligned("profile", {
       pose: { yaw: 4, pitch: 0, roll: 0 },
       eyeCollapse: 0.3,

@@ -13,6 +13,8 @@ import {
   FileImage,
 } from "lucide-react";
 import { CameraCapture, type CameraCaptureResult } from "@/components/upload/camera-capture";
+import { assessCaptureAlignment, summarizeLiveFaces, type CaptureView } from "@/lib/face/capture-guide";
+import { profilePoseMessage } from "@/lib/face/profile-pose";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -35,19 +37,27 @@ const frontGuidance = [
   "No heavy shadows or hair occlusion",
 ];
 
+const threeQuarterSteps = [
+  "Turn about halfway, so one eye leads.",
+  "The far eye should still be just visible.",
+  "Keep your chin level and look ahead.",
+];
+
 const profileSteps = [
+  "Keep turning until the far eyebrow disappears.",
   "Keep your eyes looking straight ahead.",
   "Keep your chin neutral — don't look up or down.",
   "Keep your ear uncovered.",
 ];
 
-type Step = "setup" | "front" | "profile" | "review";
+type Step = "setup" | "front" | "threeQuarter" | "profile" | "review";
 
 const steps: { id: Step; label: string; number: string }[] = [
   { id: "setup", label: "Setup", number: "01" },
   { id: "front", label: "Front view", number: "02" },
-  { id: "profile", label: "Profile view", number: "03" },
-  { id: "review", label: "Photo check", number: "04" },
+  { id: "threeQuarter", label: "3/4 view", number: "03" },
+  { id: "profile", label: "Side view", number: "04" },
+  { id: "review", label: "Photo check", number: "05" },
 ];
 
 export function NewAnalysisWizard() {
@@ -126,6 +136,44 @@ export function NewAnalysisWizard() {
       return;
     }
     router.push(`/analysis/${body.analysisId}/edit`);
+  }
+
+  function onThreeQuarterCamera(result: CameraCaptureResult) {
+    void result.image.then((image) => URL.revokeObjectURL(image.previewUrl));
+    const summary = summarizeLiveFaces(result.faces, { width: result.width, height: result.height }, result.lens);
+    const message = threeQuarterGate(summary);
+    if (message) {
+      setError(message);
+      return;
+    }
+    setError("");
+    setStep("profile");
+  }
+
+  async function onThreeQuarterFile(file: File) {
+    if (!analysisId) return;
+    setPending(true);
+    setError("");
+    setNotice("Preparing photo");
+    try {
+      const prepared = await prepareImage(file);
+      URL.revokeObjectURL(prepared.previewUrl);
+      setNotice("Detecting face");
+      const detection = await detectRawFace(prepared.blob, "profile");
+      const summary = summarizeLiveFaces(detection.faces, { width: prepared.width, height: prepared.height });
+      const message = threeQuarterGate(summary);
+      if (message) {
+        setError(message);
+        return;
+      }
+      setError("");
+      setStep("profile");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The photo could not be processed.");
+    } finally {
+      setPending(false);
+      setNotice("");
+    }
   }
 
   function onCamera(view: FaceView, result: CameraCaptureResult) {
@@ -269,7 +317,7 @@ export function NewAnalysisWizard() {
     if (view === "front") {
       markCapture("capture-to-next-step-end");
       measureCapture("total-capture-to-next-step", "capture-to-next-step-start", "capture-to-next-step-end");
-      setStep("profile");
+      setStep("threeQuarter");
     }
     const session = queueRef.current.start(view);
     const job = session.enqueue(async () => {
@@ -342,11 +390,11 @@ export function NewAnalysisWizard() {
   const saveLine = saving.front && saving.profile
     ? "Saving photos…"
     : saving.front
-      ? step === "profile"
-        ? "Saving front photo… You can line up your profile."
-        : "Saving front photo…"
+      ? step === "front"
+        ? "Saving front photo…"
+        : "Saving front photo… You can line up the next view."
       : saving.profile
-        ? "Saving profile photo…"
+        ? "Saving side photo…"
         : notice;
 
   const currentStepIndex = steps.findIndex((s) => s.id === step);
@@ -363,7 +411,7 @@ export function NewAnalysisWizard() {
         </h1>
 
         {/* Step Progress Indicator */}
-        <div className="mt-6 grid grid-cols-4 gap-2 sm:gap-4">
+        <div className="mt-6 grid grid-cols-5 gap-2 sm:gap-4">
           {steps.map((s, index) => {
             const isCompleted = index < currentStepIndex;
             const isCurrent = s.id === step;
@@ -410,7 +458,7 @@ export function NewAnalysisWizard() {
       {/* Step Content */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={step === "front" || step === "profile" ? "capture" : step}
+          key={step === "setup" || step === "review" ? step : "capture"}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
@@ -463,15 +511,23 @@ export function NewAnalysisWizard() {
             </Card>
           ) : null}
 
-          {step === "front" || step === "profile" ? (
+          {step === "front" || step === "threeQuarter" || step === "profile" ? (
             <PhotoStep
               view={step}
-              preview={previews[step]}
+              preview={step === "threeQuarter" ? undefined : previews[step]}
               pending={pending}
               notice={saveLine}
-              onCamera={(result) => onCamera(step, result)}
-              onFile={(file) => void onFile(step, file)}
-              onManual={(file) => void placeManually(step, file)}
+              onCamera={(result) => {
+                if (step === "threeQuarter") onThreeQuarterCamera(result);
+                else onCamera(step, result);
+              }}
+              onFile={(file) => {
+                if (step === "threeQuarter") void onThreeQuarterFile(file);
+                else void onFile(step, file);
+              }}
+              onManual={(file) => {
+                if (step !== "threeQuarter") void placeManually(step, file);
+              }}
             />
           ) : null}
 
@@ -571,7 +627,7 @@ export function NewAnalysisWizard() {
               <Button size="sm" variant="secondary" onClick={retrySave}>
                 Retry save
               </Button>
-              {failedView === "front" && step === "profile" ? (
+              {failedView === "front" && step !== "front" ? (
                 <Button size="sm" variant="outline" onClick={() => setStep("front")}>
                   Retake front photo
                 </Button>
@@ -591,6 +647,30 @@ interface HeldCapture {
   height: number;
   blurScore: number;
   brightnessScore: number;
+}
+
+function threeQuarterGate(summary: ReturnType<typeof summarizeLiveFaces>): string | null {
+  if (summary.faceCount !== 1) {
+    return summary.faceCount > 1 ? "Only one face can be in the frame." : "Turn halfway to either side.";
+  }
+  const assessment = assessCaptureAlignment({
+    view: "threeQuarter",
+    faceCount: summary.faceCount,
+    pose: summary.pose,
+    coverage: summary.coverage,
+    centerX: summary.centerX,
+    centerY: summary.centerY,
+    facesLeft: summary.facesLeft,
+    mirroredPreview: true,
+    eyeCollapse: summary.eyeCollapse,
+    noseLead: summary.noseLead,
+    frankfortTilt: summary.frankfortTilt,
+    facialHeight: summary.facialHeight,
+    anchorX: summary.anchorX,
+    anchorY: summary.anchorY,
+  });
+  if (assessment.checks.find((check) => check.id === "pose")?.ok) return null;
+  return profilePoseMessage(assessment.profilePose ?? "frontal");
 }
 
 async function postCapture(
@@ -644,7 +724,7 @@ function PhotoStep({
   onFile,
   onManual,
 }: {
-  view: FaceView;
+  view: CaptureView;
   preview?: string;
   pending: boolean;
   notice: string;
@@ -653,10 +733,11 @@ function PhotoStep({
   onManual: (file: File) => void;
 }) {
   const [mode, setMode] = useState<"camera" | "upload">("camera");
-  const [fileState, setFileState] = useState<{ view: FaceView; file: File | null }>({ view, file: null });
+  const [fileState, setFileState] = useState<{ view: CaptureView; file: File | null }>({ view, file: null });
   const file = fileState.view === view ? fileState.file : null;
   const viewRef = useRef(view);
-  const photoLabel = view === "front" ? "Front photograph" : "Profile photograph";
+  const photoLabel =
+    view === "front" ? "Front photograph" : view === "threeQuarter" ? "Three-quarter photograph" : "Side photograph";
 
   useEffect(() => {
     viewRef.current = view;
@@ -692,7 +773,9 @@ function PhotoStep({
             <CardDescription className="mt-1">
               {view === "front"
                 ? "Face the camera with a neutral expression, at eye level."
-                : "A true side view, looking straight ahead."}
+                : view === "threeQuarter"
+                  ? "A halfway turn. One eye leads, and the far eye is still just visible."
+                  : "A true side view, looking straight ahead."}
             </CardDescription>
           </div>
 
@@ -731,6 +814,7 @@ function PhotoStep({
       </CardHeader>
 
       <CardContent>
+        {view === "threeQuarter" ? <ThreeQuarterInstructions /> : null}
         {view === "profile" ? <ProfileInstructions /> : null}
         {mode === "camera" ? (
           <div className="space-y-4">
@@ -796,7 +880,7 @@ function PhotoStep({
           </p>
         ) : null}
 
-        {file ? (
+        {file && view !== "threeQuarter" ? (
           <div className="mt-4 pt-4 border-t border-line/60 flex items-center justify-between">
             <span className="text-xs text-muted">
               Auto-detector issues?
@@ -813,6 +897,19 @@ function PhotoStep({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ThreeQuarterInstructions() {
+  return (
+    <div className="mb-4 rounded-md border border-line bg-panel-muted p-3">
+      <p className="text-sm font-medium text-ink">Turn halfway to either side.</p>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+        {threeQuarterSteps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

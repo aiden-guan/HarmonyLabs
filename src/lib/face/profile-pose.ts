@@ -4,6 +4,9 @@ import type { ProfileShapeCue } from "@/lib/face/quality";
  * Live profile pose, from combined mesh geometry.
  * Yaw alone is not a lateral profile. A three-quarter turn stays in
  * `threeQuarter` until the eyes stack and the nose leads the face.
+ *
+ * `lateral` here is the three-quarter capture target. A stored side
+ * photograph has to pass `isTrueSidePose`, which asks for a fuller turn.
  */
 export type ProfilePoseState = "frontal" | "threeQuarter" | "nearlyLateral" | "lateral" | "unreliable";
 
@@ -36,6 +39,11 @@ const NOSE_STRONG = 0.16;
 const NEAR_YAW = 38;
 const PARTIAL_STACK = 0.64;
 const MILD_YAW = 16;
+
+/** True lateral: eyes stacked, nose clearly in front, and a strong turn together. */
+const SIDE_YAW = 52;
+const SIDE_STACK = 0.88;
+const SIDE_NOSE = 0.16;
 
 function finite(value: number | null | undefined): number | null {
   return value != null && Number.isFinite(value) ? value : null;
@@ -94,7 +102,30 @@ export function classifyProfilePose(
 export function profilePoseMessage(state: ProfilePoseState): string {
   if (state === "threeQuarter") return "Turn a little farther.";
   if (state === "nearlyLateral") return "Almost there — keep turning slightly.";
-  if (state === "lateral") return "Good profile. Keep your head level.";
+  if (state === "lateral") return "Good three-quarter. Hold still.";
+  return "Turn to either side.";
+}
+
+/**
+ * A side photograph has to be past the three-quarter stage.
+ * Relaxed is only a small band for a pose that is already a true side.
+ */
+export function isTrueSidePose(yaw: number | null, cue: ProfileShapeCue, relaxed = false): boolean {
+  const absYaw = finite(yaw) === null ? null : Math.abs(yaw as number);
+  const collapse = finite(cue.eyeCollapse);
+  const lead = finite(cue.noseLead);
+  if (absYaw === null || collapse === null || lead === null) return false;
+  const yawCut = SIDE_YAW - (relaxed ? 4 : 0);
+  const stackCut = SIDE_STACK - (relaxed ? 0.03 : 0);
+  const noseCut = SIDE_NOSE - (relaxed ? 0.02 : 0);
+  return absYaw >= yawCut && collapse >= stackCut && lead >= noseCut;
+}
+
+export function sidePoseMessage(yaw: number | null, cue: ProfileShapeCue): string {
+  if (isTrueSidePose(yaw, cue)) return "Good side profile. Keep your head level.";
+  const pose = classifyProfilePose(yaw, cue);
+  if (pose === "lateral" || pose === "nearlyLateral") return "Keep turning until you are fully sideways.";
+  if (pose === "threeQuarter") return "Turn farther until you are fully sideways.";
   return "Turn to either side.";
 }
 

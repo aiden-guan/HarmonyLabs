@@ -19,10 +19,14 @@ test("sign in, upload, adjust a landmark, read report, and export shareable card
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Upload photo" }).click();
   await page.getByLabel("Front photograph").setInputFiles(path.join(fixtureDir, "front.png"));
-  await expect(page.getByRole("heading", { name: "Profile photograph" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Three-quarter photograph" })).toBeVisible();
+  await expect(page.getByText("Turn halfway to either side.")).toBeVisible();
+  await page.getByRole("button", { name: "Upload photo" }).click();
+  await page.getByLabel("Three-quarter photograph").setInputFiles(path.join(fixtureDir, "profile.png"));
+  await expect(page.getByRole("heading", { name: "Side photograph" })).toBeVisible();
   await expect(page.getByText("Turn your head 90° to either side.")).toBeVisible();
   await page.getByRole("button", { name: "Upload photo" }).click();
-  await page.getByLabel("Profile photograph").setInputFiles(path.join(fixtureDir, "profile.png"));
+  await page.getByLabel("Side photograph").setInputFiles(path.join(fixtureDir, "profile.png"));
   await expect(page.getByRole("heading", { name: "Photo check" })).toBeVisible();
   await page.getByRole("button", { name: "Review landmarks" }).click();
 

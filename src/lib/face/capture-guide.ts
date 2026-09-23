@@ -1,10 +1,13 @@
 import { undistortLandmarks, type LensModel } from "@/lib/face/camera-optics";
+import { SIDE_FRAME_RATIO } from "@/lib/face/capture-outline";
 import { FACE_OVAL_LOOP } from "@/lib/face/face-oval";
 import { frankfortTilt } from "@/lib/face/frankfort";
 import { MP } from "@/lib/face/mediapipe-map";
 import {
   classifyProfilePose,
+  isTrueSidePose,
   profilePoseMessage,
+  sidePoseMessage,
   type ProfilePoseState,
 } from "@/lib/face/profile-pose";
 import {
@@ -16,6 +19,9 @@ import {
   type PoseEstimate,
 } from "@/lib/face/quality";
 import type { FaceView, RawFaceLandmark } from "@/types/face";
+
+/** Front, the halfway turn, and the true side are separate capture targets. */
+export type CaptureView = FaceView | "threeQuarter";
 
 export { FACE_OVAL_LOOP };
 
@@ -38,7 +44,9 @@ export const CAPTURE_FRAME = {
   pitch: 12,
   faceHeight: 0.62,
   frontWidthRatio: 0.72,
-  profileWidthRatio: 0.92,
+  /** Halfway turn: narrower than a true side, wider than a straight-on face. */
+  threeQuarterWidthRatio: 0.84,
+  profileWidthRatio: SIDE_FRAME_RATIO,
   maxWidthFraction: 0.74,
   profileCenterToleranceX: 0.11,
 } as const;
@@ -85,8 +93,13 @@ export interface LiveFaceSummary {
   nose: { x: number; y: number } | null;
 }
 
-export function captureGuideBox(width: number, height: number, view: FaceView): GuideBox {
-  const ratio = view === "front" ? CAPTURE_FRAME.frontWidthRatio : CAPTURE_FRAME.profileWidthRatio;
+export function captureGuideBox(width: number, height: number, view: CaptureView): GuideBox {
+  const ratio =
+    view === "front"
+      ? CAPTURE_FRAME.frontWidthRatio
+      : view === "threeQuarter"
+        ? CAPTURE_FRAME.threeQuarterWidthRatio
+        : CAPTURE_FRAME.profileWidthRatio;
   let faceH = height * CAPTURE_FRAME.faceHeight;
   let faceW = faceH * ratio;
   const maxW = width * CAPTURE_FRAME.maxWidthFraction;
@@ -101,7 +114,7 @@ export function captureGuideBox(width: number, height: number, view: FaceView): 
 
 export function assessCaptureAlignment(
   input: {
-    view: FaceView;
+    view: CaptureView;
     faceCount: number;
     pose: PoseEstimate;
     coverage: number;
@@ -120,20 +133,19 @@ export function assessCaptureAlignment(
 ): CaptureAssessment {
   const band = options?.stable ? 1.35 : 1;
   const hasFace = input.faceCount === 1;
-  const centerX = input.view === "profile" && input.anchorX != null ? input.anchorX : input.centerX;
-  const centerY = input.view === "profile" && input.anchorY != null ? input.anchorY : input.centerY;
+  const turned = input.view !== "front";
+  const centerX = turned && input.anchorX != null ? input.anchorX : input.centerX;
+  const centerY = turned && input.anchorY != null ? input.anchorY : input.centerY;
   const height = input.facialHeight ?? null;
-  const distanceOk =
-    input.view === "profile"
-      ? hasFace &&
-        height !== null &&
-        height >= CAPTURE_FRAME.profileHeightMin / band &&
-        height <= CAPTURE_FRAME.profileHeightMax * band
-      : hasFace &&
-        input.coverage >= CAPTURE_FRAME.coverageMin / band &&
-        input.coverage <= CAPTURE_FRAME.coverageMax * band;
-  const toleranceX =
-    (input.view === "profile" ? CAPTURE_FRAME.profileCenterToleranceX : CAPTURE_FRAME.centerToleranceX) * band;
+  const distanceOk = turned
+    ? hasFace &&
+      height !== null &&
+      height >= CAPTURE_FRAME.profileHeightMin / band &&
+      height <= CAPTURE_FRAME.profileHeightMax * band
+    : hasFace &&
+      input.coverage >= CAPTURE_FRAME.coverageMin / band &&
+      input.coverage <= CAPTURE_FRAME.coverageMax * band;
+  const toleranceX = (turned ? CAPTURE_FRAME.profileCenterToleranceX : CAPTURE_FRAME.centerToleranceX) * band;
   const centerOk =
     hasFace &&
     centerX !== null &&
@@ -142,41 +154,47 @@ export function assessCaptureAlignment(
     Math.abs(centerY - CAPTURE_FRAME.centerY) <= CAPTURE_FRAME.centerToleranceY * band;
   const { yaw, pitch, roll } = input.pose;
   const frankfort = input.frankfortTilt;
-  const levelOk =
-    input.view === "profile"
-      ? hasFace && (frankfort == null || Math.abs(frankfort) <= 15 * band)
-      : hasFace &&
-        roll !== null &&
-        pitch !== null &&
-        Math.abs(roll) <= CAPTURE_FRAME.roll * band &&
-        Math.abs(pitch) <= CAPTURE_FRAME.pitch * band;
-  const profilePose =
-    input.view === "profile"
-      ? classifyProfilePose(yaw, { eyeCollapse: input.eyeCollapse ?? null, noseLead: input.noseLead ?? null }, options?.stable === true)
-      : null;
+  const levelOk = turned
+    ? hasFace && (frankfort == null || Math.abs(frankfort) <= 15 * band)
+    : hasFace &&
+      roll !== null &&
+      pitch !== null &&
+      Math.abs(roll) <= CAPTURE_FRAME.roll * band &&
+      Math.abs(pitch) <= CAPTURE_FRAME.pitch * band;
+  const cue = { eyeCollapse: input.eyeCollapse ?? null, noseLead: input.noseLead ?? null };
+  const profilePose = turned ? classifyProfilePose(yaw, cue, options?.stable === true) : null;
   const poseOk =
     hasFace &&
     (input.view === "front"
       ? yaw !== null && Math.abs(yaw) <= CAPTURE_FRAME.frontYaw * band
-      : profilePose === "lateral");
+      : input.view === "threeQuarter"
+        ? profilePose === "lateral"
+        : isTrueSidePose(yaw, cue, options?.stable === true));
 
   const checks: AlignmentCheck[] = [
     { id: "face", label: "One face", ok: hasFace },
     { id: "distance", label: "Distance", ok: distanceOk },
     { id: "center", label: "Centered", ok: centerOk },
     { id: "level", label: "Level", ok: levelOk },
-    { id: "pose", label: input.view === "front" ? "Straight on" : "Side view", ok: poseOk },
+    {
+      id: "pose",
+      label: input.view === "front" ? "Straight on" : input.view === "threeQuarter" ? "Three-quarter" : "Side view",
+      ok: poseOk,
+    },
   ];
   const ready = checks.every((check) => check.ok);
-  const order: AlignmentCheck["id"][] =
-    input.view === "profile" ? ["face", "distance", "pose", "level", "center"] : ["face", "distance", "center", "level", "pose"];
+  const order: AlignmentCheck["id"][] = turned
+    ? ["face", "distance", "pose", "level", "center"]
+    : ["face", "distance", "center", "level", "pose"];
   const failed = order.map((id) => checks.find((check) => check.id === id)).find((check) => check && !check.ok);
   return {
     status: ready ? "ready" : hasFace ? "adjust" : "searching",
     message: ready
       ? input.view === "profile"
-        ? "Good profile. Keep your head level."
-        : "Aligned. Hold still."
+        ? "Good side profile. Keep your head level."
+        : input.view === "threeQuarter"
+          ? "Good three-quarter. Hold still."
+          : "Aligned. Hold still."
       : failed
         ? instruction({ ...input, centerX, centerY }, failed.id, band, profilePose)
         : "Aligned. Hold still.",
@@ -311,7 +329,7 @@ function farthestFrom(nose: RawFaceLandmark, points: Array<RawFaceLandmark | und
 
 function instruction(
   input: {
-    view: FaceView;
+    view: CaptureView;
     faceCount: number;
     pose: PoseEstimate;
     coverage: number;
@@ -330,10 +348,12 @@ function instruction(
 ): string {
   if (failed === "face") {
     if (input.faceCount > 1) return "Only one face can be in the frame.";
-    return input.view === "profile" ? "Turn to either side." : "Step into the outline.";
+    if (input.view === "threeQuarter") return "Turn halfway to either side.";
+    if (input.view === "profile") return "Turn to a full side view.";
+    return "Step into the outline.";
   }
   if (failed === "distance") {
-    if (input.view === "profile") {
+    if (input.view !== "front") {
       const height = input.facialHeight ?? 0;
       return height > CAPTURE_FRAME.profileHeightMax * band ? "Move back slightly." : "Move closer.";
     }
@@ -341,19 +361,23 @@ function instruction(
       ? "Move back so the outline frames your whole face."
       : "Move closer until your face fills the outline.";
   }
-  if (failed === "pose" && input.view === "profile") return profilePoseMessage(profilePose ?? "frontal");
+  if (failed === "pose" && input.view === "profile") {
+    return sidePoseMessage(input.pose.yaw, { eyeCollapse: input.eyeCollapse ?? null, noseLead: input.noseLead ?? null });
+  }
+  if (failed === "pose" && input.view === "threeQuarter") return profilePoseMessage(profilePose ?? "frontal");
   if (failed === "center") return centerInstruction(input, band);
   if (failed === "level") return levelInstruction(input.view, input.pose, band);
   return poseInstruction(input.view);
 }
 
 function centerInstruction(
-  input: { view?: FaceView; centerX: number | null; centerY: number | null; mirroredPreview: boolean },
+  input: { view?: CaptureView; centerX: number | null; centerY: number | null; mirroredPreview: boolean },
   band: number,
 ): string {
   if (input.view === "profile") {
     return "Center your head in the brackets, with room in front of your nose and behind your ear.";
   }
+  if (input.view === "threeQuarter") return "Center your head in the outline.";
   if (input.centerX === null || input.centerY === null) return "Center your face in the outline.";
   const dx = input.centerX - CAPTURE_FRAME.centerX;
   const dy = input.centerY - CAPTURE_FRAME.centerY;
@@ -370,15 +394,16 @@ function centerInstruction(
   return "Center your face in the outline.";
 }
 
-function levelInstruction(view: FaceView, pose: PoseEstimate, band: number): string {
-  if (view === "profile") return "Keep your gaze level — don't raise or lower your chin.";
+function levelInstruction(view: CaptureView, pose: PoseEstimate, band: number): string {
+  if (view !== "front") return "Keep your gaze level — don't raise or lower your chin.";
   const roll = pose.roll === null ? Number.POSITIVE_INFINITY : Math.abs(pose.roll);
   const pitch = pose.pitch === null ? Number.POSITIVE_INFINITY : Math.abs(pose.pitch);
   if (roll >= pitch && roll > CAPTURE_FRAME.roll * band) return "Level your head with the eye line.";
   return "Bring your chin level with the outline.";
 }
 
-function poseInstruction(view: FaceView): string {
-  if (view === "profile") return "Turn to either side.";
+function poseInstruction(view: CaptureView): string {
+  if (view === "threeQuarter") return "Turn halfway to either side.";
+  if (view === "profile") return "Turn to a full side view.";
   return "Square your face to the camera so it matches the outline.";
 }

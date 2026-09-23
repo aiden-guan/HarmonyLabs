@@ -3,7 +3,7 @@
 ## 2026-09-23 — Capture pipeline
 
 ### Summary
-The front camera capture now advances to the profile step after a local check, instead of waiting on a new face model, a full-frame lens loop, and two network saves. Profile capture guides the real face into a true side view.
+The front camera capture now advances to the three-quarter step after a local check, instead of waiting on a new face model, a full-frame lens loop, and two network saves. A three-quarter pose stays its own stage. The side stage after it asks for a true lateral outline.
 
 ### Added
 - Persistent still-image FaceLandmarker worker, reused across photographs, with request ids, timeout, and shutdown.
@@ -12,7 +12,7 @@ The front camera capture now advances to the profile step after a local check, i
 - Off-thread lens correction so the saved photograph and the stored landmarks stay in the same coordinate frame.
 - One `POST /api/analyses/[analysisId]/captures` request for the photo, its quality, and its landmarks.
 - A stricter profile pose classifier (`frontal`, `threeQuarter`, `nearlyLateral`, `lateral`) with temporal hysteresis before auto-capture.
-- Profile guidance built from brackets, a level line, the live contour, and one instruction. The static profile silhouette is gone.
+- The capture wizard has a three-quarter stage, then a side stage. The side stage draws a lateral head and rejects a halfway turn. The three-quarter stage keeps the looser pose.
 
 ### Changed
 - Camera statistics come from a small sample. The camera path no longer decodes and re-encodes the JPEG just to measure blur.
