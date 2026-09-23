@@ -82,6 +82,60 @@ export function profileFacesLeft(raw: RawFaceLandmark[]): boolean {
   return offset !== null && offset < -0.02;
 }
 
+export interface ProfileShapeCue {
+  eyeCollapse: number | null;
+  noseLead: number | null;
+}
+
+/**
+ * How close the photograph is to a true lateral, independent of the depth yaw.
+ * Eye collapse is 1 when the two outer canthi overlap. Nose lead is how far
+ * the tip sits ahead of the eyes, as a fraction of face height.
+ */
+export function profileShapeCue(raw: RawFaceLandmark[]): ProfileShapeCue {
+  const left = raw[MP.leftEyeOuter];
+  const right = raw[MP.rightEyeOuter];
+  const forehead = raw[MP.foreheadApex];
+  const chin = raw[MP.menton];
+  const nose = raw[MP.pronasale];
+  if (!left || !right || !forehead || !chin) return { eyeCollapse: null, noseLead: null };
+  const faceH = Math.abs(chin.y - forehead.y);
+  if (faceH < 0.05) return { eyeCollapse: null, noseLead: null };
+  const eyeCollapse = 1 - Math.abs(left.x - right.x) / faceH;
+  const noseLead = nose ? Math.abs(nose.x - (left.x + right.x) / 2) / faceH : null;
+  return {
+    eyeCollapse: Number.isFinite(eyeCollapse) ? eyeCollapse : null,
+    noseLead: noseLead !== null && Number.isFinite(noseLead) ? noseLead : null,
+  };
+}
+
+/**
+ * A side photo is ready once the nose is in front and the eyes have started
+ * to stack, or the depth yaw is already a side view. Only a near-frontal
+ * photo is refused. A slightly open far eyebrow stays usable, and a small
+ * head tilt is leveled afterwards from the ear to the lower eyelid.
+ */
+export function profileTurn(
+  yaw: number | null,
+  cue: ProfileShapeCue,
+  relaxed = false,
+): "ready" | "close" | "no" {
+  if (yaw === null && cue.eyeCollapse === null) return "ready";
+  const absYaw = yaw === null ? null : Math.abs(yaw);
+  const collapse = cue.eyeCollapse;
+  const lead = cue.noseLead;
+  const stacked =
+    collapse !== null &&
+    collapse >= (relaxed ? 0.48 : 0.55) &&
+    (lead === null || lead >= (relaxed ? 0.04 : 0.05));
+  const yawReady = absYaw !== null && absYaw >= (relaxed ? 24 : 28);
+  if (stacked || yawReady) return "ready";
+  const eyesApart = collapse === null || collapse < (relaxed ? 0.38 : 0.42);
+  const yawFlat = absYaw === null || absYaw < (relaxed ? 14 : 18);
+  if (eyesApart && yawFlat) return "no";
+  return "close";
+}
+
 export function mirrorRawLandmarks(raw: RawFaceLandmark[]): RawFaceLandmark[] {
   return raw.map((point) => ({
     ...point,
@@ -101,6 +155,9 @@ export function evaluatePhotoQuality(input: {
   brightnessScore: number;
   faceCoverage: number;
   mirrored: boolean;
+  profileCue?: ProfileShapeCue;
+  /** Degrees the ear-to-eyelid line sits off horizontal, when it was not leveled. */
+  frankfortTilt?: number | null;
 }): { quality: PhotoQuality; hardError: string | null } {
   const warnings: string[] = [];
   const { yaw, pitch, roll } = input.pose;
@@ -127,17 +184,17 @@ export function evaluatePhotoQuality(input: {
     warnings.push("The photo is very bright. Some contours may be washed out.");
   }
 
-  if (roll !== null && Math.abs(roll) > 28) {
+  if (input.view !== "profile" && roll !== null && Math.abs(roll) > 28) {
     hardError =
       hardError ??
       `Head tilt is about ${roundDegrees(roll)}. Retake the photo with the camera closer to level.`;
-  } else if (roll !== null && Math.abs(roll) > 10) {
+  } else if (input.view !== "profile" && roll !== null && Math.abs(roll) > 10) {
     warnings.push(
       `Head tilt is about ${roundDegrees(roll)}. Measurements can shift when the camera is not level.`,
     );
   }
 
-  if (pitch !== null && Math.abs(pitch) > 18) {
+  if (input.view !== "profile" && pitch !== null && Math.abs(pitch) > 18) {
     warnings.push(
       `Chin or forehead pitch is about ${roundDegrees(pitch)}. Vertical proportions may differ from a level photo.`,
     );
@@ -161,14 +218,20 @@ export function evaluatePhotoQuality(input: {
     }
   }
 
-  if (input.view === "profile" && yaw !== null) {
-    if (Math.abs(yaw) < 22) {
+  if (input.view === "profile") {
+    const turn = profileTurn(yaw, input.profileCue ?? { eyeCollapse: null, noseLead: null });
+    if (turn === "no") {
       hardError =
         hardError ??
-        "This does not look like a profile. Turn the head until the nose and chin are seen from the side.";
-    } else if (Math.abs(yaw) < 40) {
+        "This is not a side view yet. Turn until the far eyebrow is hidden and look straight ahead.";
+    } else if (turn === "close") {
       warnings.push(
-        `Profile turn is about ${roundDegrees(yaw)}. A fuller side view makes angles more stable.`,
+        "The far eyebrow may still be visible. A fuller side view keeps these angles steady. You can check the points on the next screen.",
+      );
+    }
+    if (input.frankfortTilt != null && Math.abs(input.frankfortTilt) > 15) {
+      warnings.push(
+        `The head is tilted about ${roundDegrees(input.frankfortTilt)} from level. Look straight ahead. A small tilt is corrected automatically; a larger one still changes the profile.`,
       );
     }
   }

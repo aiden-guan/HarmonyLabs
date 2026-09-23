@@ -1,4 +1,5 @@
 import { clamp01 } from "@/lib/face/geometry";
+import { profileContourLandmarks } from "@/lib/face/profile-contour";
 import type {
   FaceView,
   RawFaceLandmark,
@@ -42,6 +43,9 @@ export const MP = {
   leftCheilion: 291,
   rightChin: 176,
   leftChin: 400,
+  /** Ear-canal stand-in (tragion). The profile is leveled from this point to the lower eyelid. */
+  rightTragion: 234,
+  leftTragion: 454,
   rightLateral: [234, 93, 132, 58, 127],
   leftLateral: [454, 323, 361, 288, 356],
   rightGonion: [172, 136, 58, 132],
@@ -185,6 +189,19 @@ function derivedColumella(
   };
 }
 
+/** Bridge point on the nasion–pronasale chord, used when the outline is too sparse to trace. */
+function derivedRhinion(
+  nasion: RawFaceLandmark | null,
+  pronasale: RawFaceLandmark | null,
+): RawFaceLandmark | null {
+  if (!nasion || !pronasale) return null;
+  return {
+    x: nasion.x * 0.42 + pronasale.x * 0.58,
+    y: nasion.y * 0.38 + pronasale.y * 0.62,
+    z: nasion.z * 0.42 + pronasale.z * 0.58,
+  };
+}
+
 export function mapFrontLandmarks(raw: RawFaceLandmark[]): SemanticLandmarkMap {
   const map: SemanticLandmarkMap = {};
   const nasion = at(raw, MP.nasion);
@@ -268,12 +285,18 @@ export function mapFrontLandmarks(raw: RawFaceLandmark[]): SemanticLandmarkMap {
  * Anterior is therefore the larger x direction.
  */
 export function mapProfileLandmarks(raw: RawFaceLandmark[]): SemanticLandmarkMap {
+  return profileContourLandmarks(raw) ?? mapProfileFromIndices(raw);
+}
+
+function mapProfileFromIndices(raw: RawFaceLandmark[]): SemanticLandmarkMap {
   const map: SemanticLandmarkMap = {};
   const pronasale = at(raw, MP.pronasale);
   const subnasale = at(raw, MP.subnasale);
+  const nasion = at(raw, MP.nasion);
   put(map, "foreheadApex", at(raw, MP.foreheadApex), 0.66, "mediapipe");
   put(map, "glabella", at(raw, MP.glabella), 0.74, "mediapipe");
-  put(map, "nasion", at(raw, MP.nasion), 0.78, "mediapipe");
+  put(map, "nasion", nasion, 0.78, "mediapipe");
+  put(map, "rhinion", derivedRhinion(nasion, pronasale), 0.48, "derived");
   put(map, "pronasale", pronasale, 0.86, "mediapipe");
   put(map, "subnasale", subnasale, 0.8, "mediapipe");
   put(map, "columella", derivedColumella(pronasale, subnasale), 0.5, "derived");

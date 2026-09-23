@@ -26,6 +26,7 @@ export const photoQualitySchema = z
     brightnessScore: z.number().finite(),
     faceCoverage: z.number().finite(),
     warnings: z.array(z.string().max(400)).max(20),
+    notes: z.array(z.string().max(400)).max(8).optional(),
     mirrored: z.boolean(),
   })
   .strict();

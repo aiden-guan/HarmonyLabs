@@ -21,6 +21,7 @@ test("sign in, upload, adjust a landmark, and read the harmony report", async ({
   await expect(page.getByRole("heading", { name: "Profile photograph" })).toBeVisible();
   await page.getByRole("button", { name: "Upload photo" }).click();
   await page.getByLabel("Profile photograph").setInputFiles(path.join(fixtureDir, "profile.png"));
+  await expect(page.getByRole("heading", { name: "Photo check" })).toBeVisible();
   await page.getByRole("button", { name: "Review landmarks" }).click();
 
   const nasion = page.locator("[data-landmark='nasion']");

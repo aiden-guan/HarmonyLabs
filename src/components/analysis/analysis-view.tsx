@@ -15,12 +15,13 @@ import {
 import { FaceStage } from "@/components/face-overlay/face-stage";
 import { Button } from "@/components/ui/button";
 import { METRICS } from "@/lib/face/metrics";
-import { formatLongWhen, formatMetricValue, formatRange, formatScore } from "@/lib/format";
+import { formatLongWhen, formatMetricValue, formatScore } from "@/lib/format";
 import type { AnalysisDetail, StoredMetric } from "@/lib/data/model";
 import type { FaceView, MetricCategory, SemanticLandmark } from "@/types/face";
 import { CATEGORY_LABELS } from "@/types/face";
 import { AskPanel } from "@/components/analysis/ask-panel";
 import { RangeTrack } from "@/components/analysis/range-track";
+import { measurementScale, rangeStanding, STANDING_LABEL } from "@/lib/face/scoring/placement";
 
 const filters = ["all", "facialStructure", "eyes", "nose", "lips", "jaw", "profile", "symmetry"] as const;
 
@@ -218,9 +219,18 @@ function Measurements({
               <div>
                 <p className="text-sm">{metric.definition?.label ?? metric.metricId}</p>
                 <p className="mt-1 font-mono text-xs text-muted">
-                  Value {formatMetricValue(metric.value, metric.unit)} · Reference {formatRange(metric.referenceMin, metric.referenceMax, metric.unit)} · Score {formatScore(metric.score)}
+                  Value {formatMetricValue(metric.value, metric.unit)}
+                  {metric.value !== null ? ` · ${STANDING_LABEL[rangeStanding(metric.value, measurementScale(metric.referenceMin, metric.referenceMax, metric.definition?.referenceRange ?? null))]}` : ""}
+                  {" "}· Score {formatScore(metric.score)}
                 </p>
-                <RangeTrack min={metric.referenceMin} max={metric.referenceMax} value={metric.value} />
+                <RangeTrack
+                  min={metric.referenceMin}
+                  max={metric.referenceMax}
+                  idealMin={metric.definition?.referenceRange.idealMin ?? metric.referenceMin}
+                  idealMax={metric.definition?.referenceRange.idealMax ?? metric.referenceMax}
+                  value={metric.value}
+                  unit={metric.unit}
+                />
               </div>
               <button type="button" className="text-sm text-accent" onClick={() => setSelected(metric.metricId)}>
                 View

@@ -67,6 +67,13 @@ export function assertCatalogIntegrity(): void {
     if (metric.referenceRange.max < metric.referenceRange.min) {
       throw new Error(`Inverted range for ${metric.id}`);
     }
+    if (
+      metric.referenceRange.idealMin < metric.referenceRange.min ||
+      metric.referenceRange.idealMax > metric.referenceRange.max ||
+      metric.referenceRange.idealMax < metric.referenceRange.idealMin
+    ) {
+      throw new Error(`Ideal band sits outside the usual range for ${metric.id}`);
+    }
     const required = new Set(metric.requiredLandmarks);
     for (const key of overlayKeys(metric.overlay)) {
       if (!required.has(key)) {

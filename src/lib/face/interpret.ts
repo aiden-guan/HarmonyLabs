@@ -1,3 +1,4 @@
+import { planFrankfortLevel, rotateRawLandmarks } from "@/lib/face/frankfort";
 import { mapLandmarks } from "@/lib/face/mediapipe-map";
 import {
   estimatePose,
@@ -5,6 +6,7 @@ import {
   faceCoverage,
   mirrorRawLandmarks,
   profileFacesLeft,
+  profileShapeCue,
 } from "@/lib/face/quality";
 import type { FaceView, PhotoQuality, RawFaceLandmark, SemanticLandmark } from "@/types/face";
 
@@ -12,6 +14,8 @@ export interface InterpretedPhoto {
   hardError: string | null;
   landmarks: SemanticLandmark[];
   quality: PhotoQuality;
+  /** Clockwise radians already applied to the landmarks. The saved photo must match. */
+  levelRadians: number | null;
 }
 
 export function interpretDetection(input: {
@@ -19,6 +23,8 @@ export function interpretDetection(input: {
   view: FaceView;
   blurScore: number;
   brightnessScore: number;
+  width?: number;
+  height?: number;
 }): InterpretedPhoto {
   const faceCount = input.faces.length;
   const primary = input.faces[0] ?? [];
@@ -28,7 +34,13 @@ export function interpretDetection(input: {
     raw = mirrorRawLandmarks(raw);
     mirrored = true;
   }
+  const width = input.width && input.width > 0 ? input.width : 1;
+  const height = input.height && input.height > 0 ? input.height : 1;
   const pose = raw.length > 0 ? estimatePose(raw) : { yaw: null, pitch: null, roll: null };
+  const cue = raw.length > 0 ? profileShapeCue(raw) : undefined;
+  const level =
+    input.view === "profile" && raw.length > 0 ? planFrankfortLevel(raw, width, height) : { radians: null, warnTilt: null };
+  if (level.radians !== null) raw = rotateRawLandmarks(raw, level.radians, width, height);
   const evaluated = evaluatePhotoQuality({
     view: input.view,
     faceCount,
@@ -37,7 +49,15 @@ export function interpretDetection(input: {
     brightnessScore: input.brightnessScore,
     faceCoverage: raw.length > 0 ? faceCoverage(raw) : 0,
     mirrored,
+    profileCue: cue,
+    frankfortTilt: level.warnTilt,
   });
+  if (level.radians !== null) {
+    evaluated.quality.notes = [
+      ...(evaluated.quality.notes ?? []),
+      "The profile was leveled so the ear canal and the lower eyelid sit on a horizontal line.",
+    ];
+  }
   const landmarks = evaluated.hardError || raw.length === 0 ? [] : Object.values(mapLandmarks(raw, input.view)).filter((item): item is SemanticLandmark => Boolean(item));
-  return { hardError: evaluated.hardError, landmarks, quality: evaluated.quality };
+  return { hardError: evaluated.hardError, landmarks, quality: evaluated.quality, levelRadians: level.radians };
 }

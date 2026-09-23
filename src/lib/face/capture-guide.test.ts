@@ -38,9 +38,19 @@ describe("capture guide", () => {
     expect(aligned("front").message).toMatch(/Hold still/);
     expect(aligned("profile").status).toBe("ready");
     expect(aligned("profile", { facesLeft: true }).profileFacing).toBe("left");
-    const frontalProfile = aligned("profile", { pose: { yaw: 8, pitch: 0, roll: 0 } });
+    const almost = aligned("profile", {
+      pose: { yaw: 20, pitch: 0, roll: 40 },
+      eyeCollapse: 0.48,
+      noseLead: 0.06,
+    });
+    expect(almost.status).toBe("ready");
+    expect(almost.message).toMatch(/far eyebrow/);
+    const frontalProfile = aligned("profile", { pose: { yaw: 8, pitch: 0, roll: 40 } });
     expect(frontalProfile.status).toBe("adjust");
-    expect(frontalProfile.message).toMatch(/side outline/);
+    expect(frontalProfile.message).toMatch(/far eyebrow/);
+    const lookingDown = aligned("profile", { frankfortTilt: 22 });
+    expect(lookingDown.status).toBe("adjust");
+    expect(lookingDown.message).toMatch(/straight ahead/);
     expect(frontalProfile.checks.find((check) => check.id === "pose")?.ok).toBe(false);
   });
 

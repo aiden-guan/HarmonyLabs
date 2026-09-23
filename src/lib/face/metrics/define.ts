@@ -13,6 +13,8 @@ export function withReference(
     referenceRange: {
       min: config.min,
       max: config.max,
+      idealMin: config.idealMin,
+      idealMax: config.idealMax,
       source: config.source,
       confidence: config.confidence,
     },

@@ -39,6 +39,7 @@ export const SAMPLE_PROFILE: PointRecord = {
   foreheadApex: [0.42, 0.16],
   glabella: [0.48, 0.32],
   nasion: [0.52, 0.38],
+  rhinion: [0.62, 0.43],
   pronasale: [0.74, 0.5],
   columella: [0.64, 0.54],
   subnasale: [0.58, 0.58],

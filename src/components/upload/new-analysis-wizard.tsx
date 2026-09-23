@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { interpretDetection } from "@/lib/face/interpret";
 import { detectRawFace, disposeFaceLandmarker } from "@/lib/mediapipe/face-landmarker";
-import { mirrorPreparedImage, prepareImage } from "@/lib/face/prepare-image";
+import { levelPreparedImage, mirrorPreparedImage, prepareImage, type PreparedImage } from "@/lib/face/prepare-image";
 import { sampleLandmarks } from "@/fixtures/sample-face";
 import type { FaceView, PhotoQuality, SemanticLandmark } from "@/types/face";
 
@@ -23,6 +23,9 @@ const guidance = [
 ];
 
 type Step = "setup" | "front" | "profile" | "review";
+
+const steps: Step[] = ["setup", "front", "profile", "review"];
+const stepLabels = ["Setup", "Front", "Profile", "Check"];
 
 export function NewAnalysisWizard() {
   const router = useRouter();
@@ -101,6 +104,8 @@ export function NewAnalysisWizard() {
         view,
         blurScore: prepared.blurScore,
         brightnessScore: prepared.brightnessScore,
+        width: prepared.width,
+        height: prepared.height,
       });
       if (interpreted.hardError) {
         setError(interpreted.hardError);
@@ -109,11 +114,10 @@ export function NewAnalysisWizard() {
         setStatus("");
         return;
       }
-      let image = prepared;
-      if (interpreted.quality.mirrored) {
-        image = await mirrorPreparedImage(prepared);
-        URL.revokeObjectURL(prepared.previewUrl);
-      }
+      const image =
+        view === "profile"
+          ? await alignProfile(prepared, interpreted.quality.mirrored, interpreted.levelRadians)
+          : prepared;
       setStatus("Saving analysis");
       await upload(view, image, interpreted.landmarks, interpreted.quality);
       rememberPreview(view, image.previewUrl);
@@ -185,8 +189,8 @@ export function NewAnalysisWizard() {
     <div className="mx-auto max-w-3xl">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted">New analysis</p>
       <ol className="mt-4 flex gap-4 text-sm text-muted">
-        {["Setup", "Front", "Profile", "Check"].map((label, index) => (
-          <li key={label} className={index === ["setup", "front", "profile", "review"].indexOf(step) ? "text-accent" : ""}>
+        {stepLabels.map((label, index) => (
+          <li key={label} className={index === steps.indexOf(step) ? "text-accent" : ""}>
             {label}
           </li>
         ))}
@@ -229,6 +233,9 @@ export function NewAnalysisWizard() {
                 {(qualities[view]?.warnings.length ? qualities[view]?.warnings : ["No warnings."])?.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
+                {qualities[view]?.notes?.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
               </ul>
             </div>
           ))}
@@ -241,6 +248,20 @@ export function NewAnalysisWizard() {
       {error ? <p role="alert" className="mt-4 text-sm text-signal">{error}</p> : null}
     </div>
   );
+}
+
+async function alignProfile(prepared: PreparedImage, mirrored: boolean, levelRadians: number | null) {
+  let image = prepared;
+  if (mirrored) {
+    image = await mirrorPreparedImage(prepared);
+    URL.revokeObjectURL(prepared.previewUrl);
+  }
+  if (levelRadians !== null) {
+    const leveled = await levelPreparedImage(image, levelRadians);
+    URL.revokeObjectURL(image.previewUrl);
+    image = leveled;
+  }
+  return image;
 }
 
 function PhotoStep({
@@ -273,10 +294,10 @@ function PhotoStep({
       <p className="mt-2 text-sm leading-6 text-muted">
         {mode === "camera"
           ? view === "profile"
-            ? "Turn until your profile matches the outline. A left-facing photo is mirrored into a right-facing frame before measurement."
+            ? "Turn to one side and look straight ahead, with the ear uncovered. If the far eyebrow is still visible, turn a little more. A small tilt is leveled from the ear to the lower eyelid, and you can move the points on the next screen."
             : "Look straight ahead and settle your face inside the outline. The guide checks distance, level, and pose."
           : view === "profile"
-            ? "Face right if you can. A left-facing profile is mirrored into a right-facing frame before measurement."
+            ? "Use one true side view: look straight ahead, ear uncovered, far eyebrow hidden. A small head tilt is leveled automatically, and a left-facing photo is mirrored before measurement."
             : "Use one face, looking at the camera."}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">

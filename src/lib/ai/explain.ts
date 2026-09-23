@@ -1,4 +1,6 @@
 import { formatMetricValue, formatRange, formatScore } from "@/lib/format";
+import { metricById } from "@/lib/face/metrics";
+import { measurementScale, rangeStanding, rangeSummary } from "@/lib/face/scoring/placement";
 import type { AnalysisContext } from "@/lib/ai/prompts";
 
 function scored(context: AnalysisContext) {
@@ -6,7 +8,11 @@ function scored(context: AnalysisContext) {
 }
 
 function line(metric: AnalysisContext["metrics"][number]): string {
-  return `${metric.label}: value ${formatMetricValue(metric.value, metric.unit)}, reference ${formatRange(metric.referenceMin, metric.referenceMax, metric.unit)}, score ${formatScore(metric.score)}`;
+  const definition = metricById(metric.id);
+  const scale = measurementScale(metric.referenceMin, metric.referenceMax, definition?.referenceRange ?? null);
+  const standing =
+    metric.value === null ? "" : ` ${rangeSummary(rangeStanding(metric.value, scale), metric.value, scale, metric.unit)}`;
+  return `${metric.label}: value ${formatMetricValue(metric.value, metric.unit)}, reference ${formatRange(metric.referenceMin, metric.referenceMax, metric.unit)}, score ${formatScore(metric.score)}.${standing}`;
 }
 
 export function explainStructured(question: string, context: AnalysisContext): string {

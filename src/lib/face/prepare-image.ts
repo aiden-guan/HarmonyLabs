@@ -52,6 +52,31 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   };
 }
 
+/**
+ * Rotate a prepared profile clockwise by `radians` around its center.
+ * The same rotation is applied to landmarks, so the saved photo stays aligned.
+ */
+export async function levelPreparedImage(prepared: PreparedImage, radians: number): Promise<PreparedImage> {
+  const bitmap = await createImageBitmap(prepared.blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = prepared.width;
+  canvas.height = prepared.height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("This browser could not level the profile.");
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate(radians);
+  context.drawImage(bitmap, -canvas.width / 2, -canvas.height / 2);
+  bitmap.close();
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (value) => (value ? resolve(value) : reject(new Error("Could not level the profile."))),
+      prepared.blob.type || "image/jpeg",
+      0.92,
+    );
+  });
+  return { ...prepared, blob, previewUrl: URL.createObjectURL(blob) };
+}
+
 /** Flip a prepared profile so stored pixels match mirrored landmark coordinates. */
 export async function mirrorPreparedImage(prepared: PreparedImage): Promise<PreparedImage> {
   const bitmap = await createImageBitmap(prepared.blob);

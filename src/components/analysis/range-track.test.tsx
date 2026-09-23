@@ -5,13 +5,21 @@ import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { RangeTrack } from "@/components/analysis/range-track";
 
-test("places a marker for a value inside the reference window", () => {
-  const { container } = render(<RangeTrack min={0.44} max={0.48} value={0.47} />);
-  expect(screen.getByText("reference")).toBeTruthy();
-  expect(container.querySelector(".bg-ink")).toBeTruthy();
+test("names a value inside the ideal band as great", () => {
+  render(<RangeTrack min={115} max={140} idealMin={120} idealMax={132} value={126} unit="degrees" />);
+  expect(screen.getByText(/in the ideal range/)).toBeTruthy();
+  expect(screen.getByText("Great")).toBeTruthy();
+  expect(screen.getByText("Below usual")).toBeTruthy();
+  expect(screen.getByText("Above usual")).toBeTruthy();
+});
+
+test("names a value past the usual band by direction", () => {
+  render(<RangeTrack min={0} max={6} idealMin={0} idealMax={2} value={9} unit="percent" />);
+  expect(screen.getByText(/above the usual range/)).toBeTruthy();
 });
 
 test("omits the marker when the measurement could not be calculated", () => {
-  const { container } = render(<RangeTrack min={1} max={2} value={null} />);
-  expect(container.querySelector(".bg-ink")).toBeNull();
+  const { container } = render(<RangeTrack min={1} max={2} idealMin={1.25} idealMax={1.75} value={null} unit="ratio" />);
+  expect(container.querySelector(".border-ink")).toBeNull();
+  expect(screen.getByText(/could not be calculated/)).toBeTruthy();
 });

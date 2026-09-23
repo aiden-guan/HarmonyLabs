@@ -67,10 +67,7 @@ export function CameraCapture({
   }, [pending]);
 
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production") {
-      setPhase("unavailable");
-      return;
-    }
+    if (process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production") return;
     const video = videoRef.current;
     if (!video || !navigator.mediaDevices?.getUserMedia) {
       setPhase("unavailable");
@@ -168,8 +165,12 @@ export function CameraCapture({
   }, [countdown]);
 
   function applyFaces(faces: RawFaceLandmark[][]) {
-    const summary = summarizeLiveFaces(faces);
-    if (view === "profile" && summary.faceCount === 1 && Math.abs(summary.pose.yaw ?? 0) > 25) {
+    const video = videoRef.current;
+    const summary = summarizeLiveFaces(faces, {
+      width: video?.videoWidth ?? 0,
+      height: video?.videoHeight ?? 0,
+    });
+    if (view === "profile" && summary.faceCount === 1 && Math.abs(summary.pose.yaw ?? 0) > 20) {
       facing.current = summary.facesLeft ? "left" : "right";
     }
     const next = assessCaptureAlignment(
@@ -182,6 +183,9 @@ export function CameraCapture({
         centerY: summary.centerY,
         facesLeft: summary.facesLeft,
         mirroredPreview: view === "front",
+        eyeCollapse: summary.eyeCollapse,
+        noseLead: summary.noseLead,
+        frankfortTilt: summary.frankfortTilt,
       },
       { stable: stableReady.current },
     );

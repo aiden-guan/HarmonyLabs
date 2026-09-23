@@ -76,7 +76,11 @@ export const LANDMARK_GUIDE: Record<SemanticLandmarkKey, LandmarkGuide> = {
   },
   nasion: {
     label: "Nasion",
-    hint: "Midline point at the nasal root, between the eyes.",
+    hint: "Deepest point of the nasal root, between the brow and the bridge.",
+  },
+  rhinion: {
+    label: "Rhinion",
+    hint: "Point on the nasal bridge above the tip. Profile angles use this point rather than the tip.",
   },
   pronasale: {
     label: "Pronasale",
@@ -173,6 +177,7 @@ export const PROFILE_LANDMARK_KEYS: SemanticLandmarkKey[] = [
   "foreheadApex",
   "glabella",
   "nasion",
+  "rhinion",
   "pronasale",
   "columella",
   "subnasale",

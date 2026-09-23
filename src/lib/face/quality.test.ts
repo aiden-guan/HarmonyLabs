@@ -5,6 +5,7 @@ import {
   evaluatePhotoQuality,
   mirrorRawLandmarks,
   profileFacesLeft,
+  profileTurn,
 } from "@/lib/face/quality";
 import { MP } from "@/lib/face/mediapipe-map";
 import type { RawFaceLandmark } from "@/types/face";
@@ -86,7 +87,47 @@ describe("photo quality", () => {
       faceCoverage: 0.3,
       mirrored: false,
     });
-    expect(notProfile.hardError).toMatch(/profile/);
+    expect(notProfile.hardError).toMatch(/side view/);
+
+    const threeQuarter = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 22, pitch: 0, roll: 40 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.3,
+      mirrored: false,
+      profileCue: { eyeCollapse: 0.48, noseLead: 0.06 },
+    });
+    expect(threeQuarter.hardError).toBeNull();
+    expect(threeQuarter.quality.warnings.some((warning) => warning.includes("far eyebrow"))).toBe(true);
+
+    const tilted = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 50, pitch: 20, roll: 40 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.3,
+      mirrored: false,
+      profileCue: { eyeCollapse: 0.86, noseLead: 0.2 },
+      frankfortTilt: 22,
+    });
+    expect(tilted.hardError).toBeNull();
+    expect(tilted.quality.warnings.some((warning) => warning.includes("tilted"))).toBe(true);
+
+    const stacked = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 36, pitch: 0, roll: 0 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.3,
+      mirrored: false,
+      profileCue: { eyeCollapse: 0.86, noseLead: 0.22 },
+    });
+    expect(stacked.hardError).toBeNull();
+    expect(profileTurn(61, { eyeCollapse: null, noseLead: null })).toBe("ready");
   });
 
   it("warns on mild tilt without blocking", () => {

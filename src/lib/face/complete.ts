@@ -29,7 +29,11 @@ export function completeAnalysis(input: {
     category: metric.category,
     view: metric.view,
   }));
-  const notes = [...new Set(input.qualities.flatMap((quality) => quality.warnings))];
+  const notes = [
+    ...new Set(
+      input.qualities.flatMap((quality) => [...quality.warnings, ...(quality.notes ?? [])]),
+    ),
+  ];
   if (report.partial) {
     notes.push("One photograph did not produce a full set of measurements, so Harmony uses the available view.");
   }

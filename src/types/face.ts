@@ -47,6 +47,7 @@ export type SemanticLandmarkKey =
   | "rightChinLateral"
   | "glabella"
   | "nasion"
+  | "rhinion"
   | "pronasale"
   | "subnasale"
   | "leftAlare"
@@ -96,6 +97,8 @@ export type MetricOverlay =
 export interface ReferenceRange {
   min: number;
   max: number;
+  idealMin: number;
+  idealMax: number;
   source: string;
   confidence: ReferenceConfidence;
 }
@@ -129,6 +132,8 @@ export interface PhotoQuality {
   brightnessScore: number;
   faceCoverage: number;
   warnings: string[];
+  /** Extra context that does not lower measurement confidence. */
+  notes?: string[];
   mirrored: boolean;
 }
 
