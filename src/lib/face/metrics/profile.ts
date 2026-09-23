@@ -1,0 +1,108 @@
+import { NORMALIZATION } from "@/lib/face/normalization";
+import { withReference } from "@/lib/face/metrics/define";
+import {
+  chinProjectionRatio,
+  interiorAngle,
+  linesAngle,
+  nasalProjectionRatio,
+} from "@/lib/face/metrics/helpers";
+import type { FacialMetricDefinition } from "@/types/face";
+
+export const profileMetrics: FacialMetricDefinition[] = [
+  withReference({
+    id: "facial-convexity",
+    label: "Facial convexity",
+    category: "profile",
+    view: "profile",
+    unit: "degrees",
+    requiredLandmarks: ["glabella", "subnasale", "pogonion"],
+    formula: "angle(glabella, subnasale, pogonion)",
+    normalization: NORMALIZATION.angleDegrees,
+    explanation:
+      "Angle at the base of the nose between the brow and the chin point. A straight profile is near 180°. Profile photos that are not a true side view change this angle.",
+    overlay: { type: "angle", points: ["glabella", "subnasale", "pogonion"] },
+    calculate: (map) => interiorAngle(map, "glabella", "subnasale", "pogonion"),
+  }),
+  withReference({
+    id: "nasofrontal-angle",
+    label: "Nasofrontal angle",
+    category: "profile",
+    view: "profile",
+    unit: "degrees",
+    requiredLandmarks: ["glabella", "nasion", "pronasale"],
+    formula: "angle(glabella, nasion, pronasale)",
+    normalization: NORMALIZATION.angleDegrees,
+    explanation: "Angle at the nasal root between the brow and the nose tip.",
+    overlay: { type: "angle", points: ["glabella", "nasion", "pronasale"] },
+    calculate: (map) => interiorAngle(map, "glabella", "nasion", "pronasale"),
+  }),
+  withReference({
+    id: "nasofacial-angle",
+    label: "Nasofacial angle",
+    category: "profile",
+    view: "profile",
+    unit: "degrees",
+    requiredLandmarks: ["nasion", "pronasale", "glabella", "pogonion"],
+    formula: "smaller angle between line(nasion, pronasale) and line(glabella, pogonion)",
+    normalization: NORMALIZATION.lineAngle,
+    explanation: "Inclination of the nasal dorsum relative to the line from glabella to pogonion.",
+    overlay: { type: "line", points: ["nasion", "pronasale", "glabella", "pogonion"] },
+    calculate: (map) => linesAngle(map, "nasion", "pronasale", "glabella", "pogonion"),
+  }),
+  withReference({
+    id: "nasolabial-angle",
+    label: "Nasolabial angle",
+    category: "profile",
+    view: "profile",
+    unit: "degrees",
+    requiredLandmarks: ["columella", "subnasale", "labialeSuperius"],
+    formula: "angle(columella, subnasale, labialeSuperius)",
+    normalization: NORMALIZATION.angleDegrees,
+    explanation:
+      "Angle at subnasale between the columella estimate and the upper lip. The columella point is derived and should be checked by hand.",
+    overlay: { type: "angle", points: ["columella", "subnasale", "labialeSuperius"] },
+    calculate: (map) => interiorAngle(map, "columella", "subnasale", "labialeSuperius"),
+  }),
+  withReference({
+    id: "mentolabial-angle",
+    label: "Mentolabial angle",
+    category: "profile",
+    view: "profile",
+    unit: "degrees",
+    requiredLandmarks: ["labialeInferius", "sublabiale", "pogonion"],
+    formula: "angle(labialeInferius, sublabiale, pogonion)",
+    normalization: NORMALIZATION.angleDegrees,
+    explanation:
+      "Angle at the fold under the lower lip. Sublabiale is estimated as a posterior chin-lip point and should be corrected if the fold is visible elsewhere.",
+    overlay: { type: "angle", points: ["labialeInferius", "sublabiale", "pogonion"] },
+    calculate: (map) => interiorAngle(map, "labialeInferius", "sublabiale", "pogonion"),
+  }),
+  withReference({
+    id: "nasal-projection",
+    label: "Nasal projection",
+    category: "profile",
+    view: "profile",
+    unit: "ratio",
+    requiredLandmarks: ["pronasale", "nasion", "subnasale"],
+    formula: "distance from pronasale to line(nasion, subnasale) / distance(nasion, pronasale)",
+    normalization: NORMALIZATION.segmentRatio,
+    explanation:
+      "How far the nose tip stands off the nasion–subnasale line, relative to dorsum length. This is a 2D construction, not Goode's clinical ratio.",
+    overlay: { type: "line", points: ["nasion", "subnasale", "pronasale"] },
+    calculate: (map) => nasalProjectionRatio(map),
+  }),
+  withReference({
+    id: "chin-projection",
+    label: "Chin projection",
+    category: "profile",
+    view: "profile",
+    unit: "ratio",
+    requiredLandmarks: ["pogonion", "glabella", "menton", "subnasale"],
+    formula: "signed distance from pogonion to line(glabella, menton) / distance(subnasale, menton)",
+    normalization: NORMALIZATION.signedProjection,
+    explanation:
+      "Anterior or posterior position of the chin point relative to the glabella–menton line, scaled by lower-face length. Positive is anterior on a right-facing profile.",
+    overlay: { type: "line", points: ["glabella", "menton", "pogonion"] },
+    calculate: (map) => chinProjectionRatio(map),
+  }),
+];

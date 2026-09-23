@@ -1,0 +1,209 @@
+import type { FaceView, PhotoQuality, RawFaceLandmark } from "@/types/face";
+import { MP } from "@/lib/face/mediapipe-map";
+
+export interface PoseEstimate {
+  yaw: number | null;
+  pitch: number | null;
+  roll: number | null;
+}
+
+function degrees(radians: number): number | null {
+  if (!Number.isFinite(radians)) return null;
+  return (radians * 180) / Math.PI;
+}
+
+/**
+ * Approximate pose from mesh geometry.
+ * Yaw uses the depth difference of the lateral face points relative to their
+ * horizontal span. It is not a calibrated head-pose sensor.
+ * Positive yaw means the subject's left side is closer to the camera.
+ * Roll is the slope of the eye line. The horizontal span is absolute so a
+ * level face stays near 0° whether mesh-left sits on the image left or right.
+ */
+export function estimatePose(raw: RawFaceLandmark[]): PoseEstimate {
+  const left = raw[MP.leftLateral[0]];
+  const right = raw[MP.rightLateral[0]];
+  const forehead = raw[MP.foreheadApex];
+  const chin = raw[MP.menton];
+  const leftEye = raw[MP.leftEyeOuter];
+  const rightEye = raw[MP.rightEyeOuter];
+  if (!left || !right || !forehead || !chin || !leftEye || !rightEye) {
+    return { yaw: null, pitch: null, roll: null };
+  }
+  const yaw = degrees(
+    Math.atan2(right.z - left.z, Math.abs(left.x - right.x) + 1e-6),
+  );
+  const pitch = degrees(
+    Math.atan2(chin.z - forehead.z, Math.abs(chin.y - forehead.y) + 1e-6),
+  );
+  const roll = degrees(
+    Math.atan2(leftEye.y - rightEye.y, Math.abs(leftEye.x - rightEye.x) + 1e-6),
+  );
+  return { yaw, pitch, roll };
+}
+
+export function faceCoverage(raw: RawFaceLandmark[]): number {
+  let minX = 1;
+  let maxX = 0;
+  let minY = 1;
+  let maxY = 0;
+  let count = 0;
+  for (const point of raw) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+    if (point.x < -0.05 || point.x > 1.05 || point.y < -0.05 || point.y > 1.05) {
+      continue;
+    }
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y);
+    count += 1;
+  }
+  if (count < 10) return 0;
+  return Math.max(0, Math.min(1, (maxX - minX) * (maxY - minY)));
+}
+
+/** Nose tip relative to the lateral-face midpoint. Positive means the nose sits to image-right. */
+export function noseOffset(raw: RawFaceLandmark[]): number | null {
+  const nose = raw[MP.pronasale];
+  const left = raw[MP.leftLateral[0]];
+  const right = raw[MP.rightLateral[0]];
+  if (!nose || !left || !right) return null;
+  const center = (left.x + right.x) / 2;
+  return nose.x - center;
+}
+
+/**
+ * Left-facing profiles are mirrored so every stored profile uses a
+ * right-facing frame. Anterior is then the larger x direction.
+ */
+export function profileFacesLeft(raw: RawFaceLandmark[]): boolean {
+  const offset = noseOffset(raw);
+  return offset !== null && offset < -0.02;
+}
+
+export function mirrorRawLandmarks(raw: RawFaceLandmark[]): RawFaceLandmark[] {
+  return raw.map((point) => ({
+    ...point,
+    x: 1 - point.x,
+  }));
+}
+
+function roundDegrees(value: number): string {
+  return `${Math.round(Math.abs(value))}°`;
+}
+
+export function evaluatePhotoQuality(input: {
+  view: FaceView;
+  faceCount: number;
+  pose: PoseEstimate;
+  blurScore: number;
+  brightnessScore: number;
+  faceCoverage: number;
+  mirrored: boolean;
+}): { quality: PhotoQuality; hardError: string | null } {
+  const warnings: string[] = [];
+  const { yaw, pitch, roll } = input.pose;
+  let hardError: string | null = null;
+
+  if (input.faceCount <= 0) {
+    hardError = "No face was detected. Use a photo where one face is clearly visible.";
+  } else if (input.faceCount > 1) {
+    hardError =
+      "More than one face was detected. Upload a photo with only the face you want measured.";
+  }
+
+  if (input.blurScore < 0.12) {
+    hardError =
+      hardError ??
+      "This photo is too blurry to place landmarks reliably. Retake it with the face in focus.";
+  } else if (input.blurScore < 0.35) {
+    warnings.push("The photo looks soft. Edges and landmarks may be less reliable.");
+  }
+
+  if (input.brightnessScore < 0.18) {
+    warnings.push("The photo is very dark. Landmark placement may be harder to verify.");
+  } else if (input.brightnessScore > 0.92) {
+    warnings.push("The photo is very bright. Some contours may be washed out.");
+  }
+
+  if (roll !== null && Math.abs(roll) > 28) {
+    hardError =
+      hardError ??
+      `Head tilt is about ${roundDegrees(roll)}. Retake the photo with the camera closer to level.`;
+  } else if (roll !== null && Math.abs(roll) > 10) {
+    warnings.push(
+      `Head tilt is about ${roundDegrees(roll)}. Measurements can shift when the camera is not level.`,
+    );
+  }
+
+  if (pitch !== null && Math.abs(pitch) > 18) {
+    warnings.push(
+      `Chin or forehead pitch is about ${roundDegrees(pitch)}. Vertical proportions may differ from a level photo.`,
+    );
+  }
+
+  if (input.faceCoverage > 0 && input.faceCoverage < 0.12) {
+    warnings.push("The face fills very little of the frame. A closer photo is easier to verify.");
+  } else if (input.faceCoverage > 0.72) {
+    warnings.push("The face is extremely close to the camera. Perspective can distort proportions.");
+  }
+
+  if (input.view === "front" && yaw !== null) {
+    if (Math.abs(yaw) > 38) {
+      hardError =
+        hardError ??
+        `This front photo is turned about ${roundDegrees(yaw)}. Use a photo facing the camera.`;
+    } else if (Math.abs(yaw) > 18) {
+      warnings.push(
+        `The front photo is turned about ${roundDegrees(yaw)}. Frontal measurements assume a near-straight view.`,
+      );
+    }
+  }
+
+  if (input.view === "profile" && yaw !== null) {
+    if (Math.abs(yaw) < 22) {
+      hardError =
+        hardError ??
+        "This does not look like a profile. Turn the head until the nose and chin are seen from the side.";
+    } else if (Math.abs(yaw) < 40) {
+      warnings.push(
+        `Profile turn is about ${roundDegrees(yaw)}. A fuller side view makes angles more stable.`,
+      );
+    }
+  }
+
+  if (input.mirrored) {
+    warnings.push(
+      "The profile was mirrored so measurements use a right-facing frame.",
+    );
+  }
+
+  return {
+    hardError,
+    quality: {
+      faceDetected: input.faceCount > 0,
+      faceCount: input.faceCount,
+      yaw,
+      pitch,
+      roll,
+      blurScore: input.blurScore,
+      brightnessScore: input.brightnessScore,
+      faceCoverage: input.faceCoverage,
+      warnings,
+      mirrored: input.mirrored,
+    },
+  };
+}
+
+export function measurementConfidence(
+  qualities: PhotoQuality[],
+): "High" | "Moderate" | "Low" {
+  const warningCount = qualities.reduce(
+    (count, quality) => count + quality.warnings.length,
+    0,
+  );
+  if (warningCount === 0) return "High";
+  if (warningCount <= 2) return "Moderate";
+  return "Low";
+}

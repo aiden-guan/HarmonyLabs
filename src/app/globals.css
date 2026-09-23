@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #e7edf2;
+  --panel: #f6f8fa;
+  --ink: #14202b;
+  --muted: #5c6d7c;
+  --line: #d3dde6;
+  --accent: #1c4e6e;
+  --accent-ink: #f4f8fb;
+  --signal: #8d3b1f;
+  --good: #1d6a45;
+  --warn: #8a5a12;
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-signal: var(--signal);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-familjen), "Avenir Next", "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button,
+a,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: #d5e4ef;
+}
