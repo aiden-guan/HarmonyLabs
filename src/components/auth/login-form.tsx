@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Mark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boolean }) {
   const params = useSearchParams();
@@ -14,22 +17,55 @@ export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boole
   const initialMessage = params.get("error") ?? "";
 
   return (
-    <main className="mx-auto grid min-h-screen max-w-5xl items-center gap-8 px-4 py-10 sm:px-5 sm:py-16 md:grid-cols-2 md:gap-12">
-      <div>
-        <Mark className="h-8 w-8 text-accent" />
-        <h1 className="mt-6 text-3xl tracking-tight sm:text-4xl">Sign in to FaceLab</h1>
-        <p className="mt-4 text-sm leading-6 text-muted">
-          Analyses and photographs are private to the account. Landmark detection stays in the browser.
+    <div className="min-h-screen bg-paper flex flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center mb-2">
+          <Link href="/" className="inline-flex items-center gap-2 group">
+            <Mark className="h-8 w-8 text-accent transition-transform group-hover:scale-105" />
+            <span className="text-xl font-bold tracking-tight text-ink">MogLabs</span>
+          </Link>
+        </div>
+        <h1 className="mt-4 text-center text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+          Sign in to MogLabs
+        </h1>
+        <p className="mt-2 text-center text-xs text-muted leading-relaxed max-w-sm mx-auto">
+          Private facial geometry analytics. Detection runs in your browser, and photographs remain strictly confidential.
         </p>
       </div>
-      <div className="border border-line bg-panel p-6">
-        {convex ? <ConvexPasswordForm next={next} initialMessage={initialMessage} /> : null}
-        {devAuth ? <DevSignIn next={next} initialMessage={initialMessage} /> : null}
-        {!convex && !devAuth ? (
-          <p className="text-sm text-signal">Convex is not configured for this deployment.</p>
-        ) : null}
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <Card className="border border-line bg-panel shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-semibold text-muted uppercase tracking-wider">
+              {convex ? "Account Authentication" : "Developer Access"}
+            </CardTitle>
+            <CardDescription>
+              {convex
+                ? "Enter your credentials to access your private scans and measurements."
+                : "Local session authorization for development and testing."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {convex ? <ConvexPasswordForm next={next} initialMessage={initialMessage} /> : null}
+            {devAuth ? <DevSignIn next={next} initialMessage={initialMessage} /> : null}
+            {!convex && !devAuth ? (
+              <p className="text-sm text-signal">Convex is not configured for this deployment.</p>
+            ) : null}
+
+            <div className="mt-6 border-t border-line/60 pt-4 flex items-center justify-between text-xs text-muted">
+              <Link href="/" className="inline-flex items-center gap-1.5 hover:text-ink transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back to start</span>
+              </Link>
+              <div className="inline-flex items-center gap-1">
+                <ShieldCheck className="h-3.5 w-3.5 text-good" />
+                <span>Client-side detection</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -66,10 +102,35 @@ function ConvexPasswordForm({ next, initialMessage }: { next: string; initialMes
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} className="space-y-4">
+      <div className="flex rounded-md border border-line bg-panel-muted p-1 text-xs mb-2">
+        <button
+          type="button"
+          onClick={() => { setFlow("signIn"); setMessage(""); }}
+          className={`flex-1 rounded py-1 font-medium transition-colors ${flow === "signIn" ? "bg-panel text-ink shadow-xs" : "text-muted"}`}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          onClick={() => { setFlow("signUp"); setMessage(""); }}
+          className={`flex-1 rounded py-1 font-medium transition-colors ${flow === "signUp" ? "bg-panel text-ink shadow-xs" : "text-muted"}`}
+        >
+          Create account
+        </button>
+      </div>
+
       <Field label="Email">
-        <Input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+        <Input
+          type="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          placeholder="you@domain.com"
+        />
       </Field>
+
       <Field label="Password">
         <Input
           type="password"
@@ -78,23 +139,16 @@ function ConvexPasswordForm({ next, initialMessage }: { next: string; initialMes
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete={flow === "signUp" ? "new-password" : "current-password"}
+          placeholder="At least 8 characters"
         />
       </Field>
-      <Button type="submit" className="w-full" disabled={pending}>
-        {flow === "signIn" ? "Sign in" : "Create account"}
+
+      <Button type="submit" className="w-full mt-2" disabled={pending}>
+        {pending ? "Authenticating…" : flow === "signIn" ? "Sign in" : "Create account"}
       </Button>
-      <button
-        type="button"
-        className="w-full text-sm text-accent"
-        onClick={() => {
-          setFlow(flow === "signIn" ? "signUp" : "signIn");
-          setMessage("");
-        }}
-      >
-        {flow === "signIn" ? "Create an account" : "Already have an account? Sign in"}
-      </button>
+
       {message ? (
-        <p role="alert" className="text-sm text-signal">
+        <p role="alert" className="text-xs text-signal bg-signal/5 border border-signal/20 p-2.5 rounded-md leading-relaxed">
           {message}
         </p>
       ) : null}
@@ -128,18 +182,25 @@ function DevSignIn({ next, initialMessage }: { next: string; initialMessage: str
   }
 
   return (
-    <form onSubmit={devSignIn} className="space-y-3">
-      <p className="text-sm text-muted">
-        Local development sign-in. This path is disabled in production and when Convex is configured.
-      </p>
+    <form onSubmit={devSignIn} className="space-y-4">
+      <div className="rounded-md border border-line bg-panel-muted p-3 text-xs leading-relaxed text-muted">
+        Local development sign-in. This route bypasses cloud credentials and saves data locally under your project tree.
+      </div>
       <Field label="Email">
-        <Input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+        <Input
+          type="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          placeholder="tester@domain.com"
+        />
       </Field>
       <Button type="submit" className="w-full" disabled={pending}>
-        Continue
+        {pending ? "Signing in…" : "Continue"}
       </Button>
       {message ? (
-        <p role="alert" className="text-sm text-signal">
+        <p role="alert" className="text-xs text-signal bg-signal/5 border border-signal/20 p-2.5 rounded-md leading-relaxed">
           {message}
         </p>
       ) : null}

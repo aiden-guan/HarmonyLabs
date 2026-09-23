@@ -1,6 +1,6 @@
-# FaceLab
+# MogLabs
 
-FaceLab measures facial geometry from a front photograph and a side-profile photograph. Computer vision proposes landmarks. You can move them. Distances, angles, and ratios are then calculated from those points, and a Harmony score compares the results with configurable reference ranges.
+MogLabs measures facial geometry from a front photograph and a side-profile photograph. Computer vision proposes landmarks. You can move them. Distances, angles, and ratios are then calculated from those points, and a Harmony score compares the results with configurable reference ranges.
 
 Harmony is a proportional reference score for this application. It is not a clinical assessment and it is not an objective measure of attractiveness.
 
@@ -16,7 +16,7 @@ Image
 → Report
 ```
 
-An optional language model can explain the structured report. It does not create the measurements or the score. If no model is configured, FaceLab answers from the same structured numbers.
+An optional language model can explain the structured report. It does not create the measurements or the score. If no model is configured, MogLabs answers from the same structured numbers.
 
 Left-facing profiles are mirrored into a right-facing frame before landmark mapping, and the stored photograph is flipped to match. Anterior is the larger x direction.
 

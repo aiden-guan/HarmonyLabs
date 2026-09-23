@@ -3,33 +3,56 @@
 ## 2026-09-23
 
 ### Summary
-Phone cameras no longer stretch the preview, and face alignment uses a separate lens model for a phone and a desk webcam.
+Complete production-quality UI/UX overhaul transforming the application from an early MVP into a polished facial measurement product, featuring an original MogLabs design system, refined top navigation, photo-forward result reports, interactive measurement studio, and a client-side 1080×1350 (4:5) shareable result card with Web Share API and PNG download fallback.
 
 ### Architectural & Functional Highlights
 | Component / Layer | Change | Impact |
 | :--- | :--- | :--- |
-| **Camera preview** | Size the stage from the camera buffer and use `object-fit: contain` | The face and the alignment mesh share one aspect ratio |
-| **Lens model** | Detect a phone versus a desk camera and undistort the saved frame | Wide phone lenses and narrower webcams are not treated as the same optic |
-| **Pose checks** | Scale portrait frames onto the 4:3 frame the thresholds were tuned on | A tall phone photo is not read as extra tilt or a failed side view |
+| **Shareable result image** | Client-side Canvas rendering (1080×1350, 4:5 portrait) with landmark-aware cover crop and computed typography | High-resolution social export (Instagram/X/Discord) featuring front photograph, Harmony score, and MogLabs branding without server-side image leakage |
+| **Share dialog & preview** | Dedicated `ResultSharePreview` component, Web Share API integration, automatic Download PNG fallback | Native mobile sheet sharing where supported; instant direct PNG download everywhere |
+| **Canvas font rendering** | Resolved computed font families dynamically to fix Canvas rejection of CSS `var()` shorthand | Restored proper bold typography on generated PNG cards across all browsers |
+| **Application navigation** | Replaced 220px desktop sidebar with responsive top application header and mobile drawer | Maximizes horizontal workspace for photography while keeping Dashboard, Analyze, Compare, and New analysis accessible |
+| **Design system & tokens** | Refactored `globals.css` with semantic color, surface, and typography tokens | Cohesive visual language sitting between FaceIQ Labs restraint and modern research analytics; eliminated AI-slop motifs |
+| **Result report hero** | Redesigned `analysis-view.tsx` with photo-forward report card and score hierarchy | Displays front photograph, prominent Harmony reference score, Front & Profile sub-scores, confidence ratings, and quick actions |
+| **Category & insights** | Native 0–10 reference progress bars and three structured insight panels | Replaced raw charts with readable "Closest to reference", "Furthest from reference", and "Highest potential score impact" cards |
+| **Measurement browser** | Two-column desktop studio with sticky detail panel, reference citations, and SVG overlays | Fluid filtering, instant search, and redesigned RangeTrack component while preserving scoring algorithms |
+| **Dashboard** | Latest analysis hero card with front photo thumbnail, trend progression, and saved scans | Immediate visibility into latest scan results, progress over time, and scan history |
+| **Capture flow** | 4-step guided wizard (Setup, Front, Profile, Check) with distinct quality badges | Clear separation between camera mode and upload mode without touching sensitive optical correction logic |
+| **Branding normalization** | Normalized user-facing product branding from FaceLab to MogLabs | Unified product identity across metadata, headers, landing page, auth, reference citations, and dialogs |
 
 ### Detailed Changes
 
 #### Added
-- **Camera optics**: Device detection, portrait and landscape capture constraints, and a Brown–Conrady correction for the saved photograph.
-- **Layout**: Phone-width padding, viewport fit, and larger landmark dots on a coarse pointer.
+- **Share system (`src/lib/share/` & `src/components/share/`)**:
+  - `render-result-card.ts`: Deterministic 1080×1350 Canvas generator with 70% portrait cover crop, lab alignment brackets, high-resolution typography (120px Harmony score), and MogLabs brand mark.
+  - `crop.ts`: Landmark-aware cover crop calculation with vertical centering on detected facial bounds and safe boundary clamping.
+  - `result-share-preview.tsx`: Dedicated live 4:5 preview component with lab registration corners, loading spinner, and error handling.
+  - `result-share-dialog.tsx`: Modal dialog with live preview, Web Share API (`navigator.share({ files: [...] })`), and PNG file download fallback.
+- **UI primitives (`src/components/ui/`)**:
+  - `card.tsx`: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter.
+  - `badge.tsx`: Semantic badge variants (default, accent, success, warning, danger, outline).
+  - `modal.tsx`: Accessible dialog with backdrop animation, Escape key listeners, and viewport height constraints (`max-h-[calc(100dvh-2rem)]`).
+  - `tabs.tsx`: Accessible tab bar and segmented control primitives.
+  - `score-display.tsx`: Standardized score typography component.
+- **E2E and Unit Tests**:
+  - `src/lib/share/crop.test.ts`: 7 unit tests for crop calculations, landmark-aware centering, and aspect ratio boundaries.
+  - `src/lib/share/render-result-card.test.ts`: 4 unit tests for card dimensions, aspect ratios, and valid CSS font string generation without `var()`.
+  - `e2e/analysis.spec.ts`: E2E spec verifying Share dialog opening, 4:5 preview rendering, PNG download event, and non-empty file assertion.
+  - `e2e/responsive.spec.ts`: Multi-viewport responsive tests for 390px, 768px, and 1440px ensuring zero horizontal overflow on public and authenticated screens.
 
 #### Changed / Refactored
-- **Live guide**: Pose and side-view checks run on lens-corrected landmarks. The outline drawn on the preview stays on the raw camera image.
-- **Photo stage**: Front and profile photographs keep their aspect ratio and stay within the viewport.
-
-#### Fixed
-- **Camera preview**: Removed `object-fit: fill`, which stretched the video whenever the box and the sensor aspect differed. The mesh then missed the face.
-
-#### Tooling & Hygiene
-- **Git**: Ignore the local `.pnpm-store` directory so the package cache is not treated as source changes.
+- **Landing page (`src/app/page.tsx`)**: Replaced basic wireframe with scientific hero ("Your facial proportions, measured"), technical SVG facial thirds diagram, 4-step process cards, sample analysis preview, and privacy guarantees.
+- **Dashboard (`src/components/analysis/dashboard-home.tsx`)**: Redesigned latest analysis hero with front photograph, refined Recharts progression line with tokenized tooltip, and saved scan cards.
+- **Landmark editor (`src/components/landmark-editor/editor.tsx`)**: Upgraded toolbar, view switcher, landmark inspector card, and keyboard controls; removed duplicate outer header on `/analysis/[analysisId]/edit`.
+- **Compare studio (`src/components/analysis/compare-view.tsx`)**: Added paired front photo thumbnails, head-to-head score deltas, and side-by-side metric tables.
+- **Range track (`src/components/analysis/range-track.tsx`)**: Polished visual zones and indicators while keeping test-asserted labels and standing markers intact.
+- **Login (`src/components/auth/login-form.tsx`)**: Redesigned centered authentication card with MogLabs branding and clear developer sign-in feedback.
+- **Settings (`src/components/settings/settings-form.tsx`)**: Structured preference layout with distinct danger zone for account data deletion.
+- **Local store (`src/lib/data/local-store.ts`)**: Made atomic temporary write filenames unique to eliminate concurrent write/rename race conditions during parallel test runs.
 
 ### Verification Proof
-- `pnpm test` — 50 tests passed.
-- `pnpm typecheck` — passed.
-- Homepage and sign-in at a 390px viewport — no horizontal overflow.
-- Live camera capture on a signed-in phone was not exercised in this pass.
+- `pnpm test` — 61 unit and component tests passed across 15 test suites.
+- `pnpm typecheck` — 0 TypeScript errors.
+- `pnpm lint` — 0 ESLint errors.
+- `pnpm build` — Clean Next.js 16 production build.
+- `pnpm test:e2e` — 10 Playwright tests passed end-to-end across multiple viewports and test suites.

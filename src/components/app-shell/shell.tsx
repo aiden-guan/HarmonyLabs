@@ -3,21 +3,31 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { GitCompare, History, LayoutDashboard, Plus, Settings } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  GitCompare,
+  LayoutDashboard,
+  Plus,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  ScanFace,
+} from "lucide-react";
 import { Mark } from "@/components/brand/mark";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const links = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/analysis/new", label: "New analysis", icon: Plus },
-  { href: "/dashboard#history", label: "History", icon: History },
+const navItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/analysis/new", label: "Analyze", icon: ScanFace },
   { href: "/compare", label: "Compare", icon: GitCompare },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   async function signOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -26,54 +36,178 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[220px_1fr]">
-      <a href="#content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-white focus:px-3 focus:py-2">
+    <div className="min-h-screen bg-paper text-ink flex flex-col">
+      <a
+        href="#content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:border focus:border-line focus:bg-panel focus:px-3 focus:py-2 focus:text-sm focus:shadow-md"
+      >
         Skip to content
       </a>
-      <header className="flex items-center justify-between border-b border-line bg-panel px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
-        <Link href="/dashboard" className="flex items-center gap-2 font-medium">
-          <Mark className="h-5 w-5 text-accent" />
-          FaceLab
-        </Link>
-        <button type="button" className="text-sm" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-          {open ? "Close" : "Menu"}
-        </button>
+
+      {/* Top Application Header */}
+      <header className="sticky top-0 z-40 border-b border-line bg-panel/95 backdrop-blur-sm">
+        <div className="mx-auto flex h-15 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          {/* Left: Brand + Desktop Nav */}
+          <div className="flex items-center gap-8">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2.5 font-semibold tracking-tight text-ink transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <Mark className="h-6 w-6 text-accent" />
+              <span className="text-base font-bold tracking-tight">MogLabs</span>
+            </Link>
+
+            {/* Desktop Navigation Links */}
+            <nav className="hidden md:flex items-center gap-1">
+              {navItems.map((item) => {
+                const isActive =
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+                      isActive
+                        ? "bg-slate-100/90 text-accent font-semibold"
+                        : "text-muted hover:bg-slate-50 hover:text-ink",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Right: Desktop Actions */}
+          <div className="hidden md:flex items-center gap-3">
+            <Link href="/analysis/new">
+              <Button size="sm" className="gap-1.5 shadow-xs">
+                <Plus className="h-4 w-4" />
+                <span>New analysis</span>
+              </Button>
+            </Link>
+
+            <div className="h-4 w-px bg-line mx-1" aria-hidden="true" />
+
+            <Link
+              href="/settings"
+              title="Settings"
+              aria-label="Settings"
+              className={cn(
+                "rounded-md p-2 text-muted transition-colors hover:bg-slate-100 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
+                pathname === "/settings" ? "bg-slate-100 text-accent font-semibold" : "",
+              )}
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
+
+            <button
+              type="button"
+              onClick={signOut}
+              title="Sign out"
+              aria-label="Sign out"
+              className="rounded-md p-2 text-muted transition-colors hover:bg-slate-100 hover:text-signal focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Mobile Right Controls */}
+          <div className="flex items-center gap-2 md:hidden">
+            <Link href="/analysis/new">
+              <Button size="sm" variant="primary" className="h-8 px-2.5 text-xs gap-1">
+                <Plus className="h-3.5 w-3.5" />
+                <span>New</span>
+              </Button>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-expanded={mobileMenuOpen}
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              className="rounded-md p-1.5 text-ink hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation Dropdown */}
+        <AnimatePresence>
+          {mobileMenuOpen ? (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden border-t border-line bg-panel md:hidden"
+            >
+              <nav className="flex flex-col gap-1 p-3">
+                {navItems.map((item) => {
+                  const isActive =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname.startsWith(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-slate-100 text-accent font-semibold"
+                          : "text-muted hover:bg-slate-50 hover:text-ink",
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+
+                <div className="my-1.5 border-t border-line/60" />
+
+                <Link
+                  href="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    pathname === "/settings"
+                      ? "bg-slate-100 text-accent font-semibold"
+                      : "text-muted hover:bg-slate-50 hover:text-ink",
+                  )}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-muted hover:bg-slate-50 hover:text-signal transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign out</span>
+                </button>
+              </nav>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </header>
-      <aside className={cn("border-line bg-panel md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-r", open ? "block border-b" : "hidden md:flex")}>
-        <div className="hidden items-center gap-2 px-5 py-6 md:flex">
-          <Mark className="h-6 w-6 text-accent" />
-          <span className="text-lg tracking-tight">FaceLab</span>
-        </div>
-        <nav className="flex flex-col gap-1 px-3 py-3 md:px-3">
-          {links.map((link) => {
-            const active = link.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-2 rounded-[2px] px-3 py-2 text-sm",
-                  active ? "bg-white text-accent" : "text-ink hover:bg-white/80",
-                )}
-              >
-                <link.icon className="h-4 w-4" aria-hidden />
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="mt-auto flex flex-col gap-1 px-3 py-4">
-          <Link href="/settings" className="flex items-center gap-2 rounded-[2px] px-3 py-2 text-sm hover:bg-white/80" onClick={() => setOpen(false)}>
-            <Settings className="h-4 w-4" aria-hidden />
-            Settings
-          </Link>
-          <button type="button" onClick={signOut} className="rounded-[2px] px-3 py-2 text-left text-sm text-muted hover:bg-white/80">
-            Sign out
-          </button>
-        </div>
-      </aside>
-      <main id="content" className="min-w-0 pb-[env(safe-area-inset-bottom)]">
+
+      {/* Main Content Area */}
+      <main id="content" className="flex-1 min-w-0 pb-16">
         {children}
       </main>
     </div>

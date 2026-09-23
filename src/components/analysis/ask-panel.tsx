@@ -1,7 +1,11 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { Send, Sparkles, MessageSquare, Bot, User, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const suggestions = [
   "Explain my profile score.",
@@ -76,30 +80,113 @@ export function AskPanel({ analysisId, disabled }: { analysisId: string; disable
   }
 
   return (
-    <div className="mt-6 space-y-4">
-      {disabled ? <p className="text-sm text-muted">Calculate the analysis before asking about it.</p> : null}
-      <div className="flex flex-wrap gap-2">
-        {suggestions.map((prompt) => (
-          <button key={prompt} type="button" disabled={disabled || pending} onClick={() => void ask(prompt)} className="border border-line bg-panel px-3 py-2 text-left text-sm">
-            {prompt}
-          </button>
-        ))}
-      </div>
-      <div className="space-y-3">
-        {messages.map((message, index) => (
-          <article key={`${message.role}-${index}`} className="border border-line bg-panel p-4 text-sm leading-6">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted">
-              {message.role === "user" ? "You" : message.mode === "model" ? "Assistant" : "Structured explanation"}
-            </p>
-            <p className="mt-2 whitespace-pre-wrap">{message.content}</p>
-          </article>
-        ))}
-      </div>
-      <form onSubmit={submit} className="flex gap-2">
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} className="h-10 flex-1 border border-line bg-white px-3 text-sm" placeholder="Ask about these measurements" disabled={disabled || pending} />
-        <Button type="submit" disabled={disabled || pending}>Ask</Button>
-      </form>
-      {error ? <p role="alert" className="text-sm text-signal">{error}</p> : null}
-    </div>
+    <Card className="border border-line bg-panel shadow-xs overflow-hidden">
+      <CardHeader className="border-b border-line/60 pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-accent" />
+            <CardTitle>Measurement Assistant</CardTitle>
+          </div>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            NUMERICAL EXPLANATION
+          </Badge>
+        </div>
+        <CardDescription>
+          Ask questions regarding this report&apos;s scores, literature reference limits, and deviation formulas.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-4 pt-4">
+        {disabled ? (
+          <div className="rounded-md border border-line bg-slate-50 p-3 text-xs text-muted">
+            Complete the analysis calculation first before querying the assistant.
+          </div>
+        ) : null}
+
+        {/* Suggested Prompts Pills */}
+        <div>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-muted font-medium block mb-2">
+            Suggested questions:
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                disabled={disabled || pending}
+                onClick={() => void ask(prompt)}
+                className="rounded-md border border-line bg-slate-50 px-3 py-1.5 text-xs text-ink/90 text-left transition-colors hover:border-accent hover:bg-slate-100 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Message Thread */}
+        <div className="space-y-3 min-h-[160px] max-h-[420px] overflow-y-auto p-1">
+          {messages.length === 0 ? (
+            <div className="py-12 text-center text-xs text-muted flex flex-col items-center gap-2">
+              <MessageSquare className="h-6 w-6 text-muted/40" />
+              <span>Select a question above or type your inquiry below.</span>
+            </div>
+          ) : null}
+
+          {messages.map((message, index) => {
+            const isUser = message.role === "user";
+            return (
+              <article
+                key={`${message.role}-${index}`}
+                className={cn(
+                  "rounded-lg p-4 text-xs sm:text-sm leading-relaxed border",
+                  isUser
+                    ? "bg-slate-100/90 border-slate-200/80 text-ink ml-8"
+                    : "bg-panel border-line text-ink/90 mr-4 shadow-2xs",
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  {isUser ? (
+                    <>
+                      <User className="h-3.5 w-3.5 text-muted" />
+                      <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-muted">You</span>
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="h-3.5 w-3.5 text-accent" />
+                      <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-accent">
+                        {message.mode === "model" ? "MogLabs Assistant" : "Structured Explanation"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="whitespace-pre-wrap font-sans">{message.content}</div>
+              </article>
+            );
+          })}
+        </div>
+
+        {/* Query Input Form */}
+        <form onSubmit={submit} className="flex gap-2 pt-2 border-t border-line/60">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            className="h-10 flex-1 rounded-md border border-line bg-panel px-3 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+            placeholder="Ask about these measurements…"
+            disabled={disabled || pending}
+          />
+          <Button type="submit" disabled={disabled || pending || !draft.trim()} className="gap-1.5">
+            <span>{pending ? "Answering…" : "Ask"}</span>
+            <Send className="h-3.5 w-3.5" />
+          </Button>
+        </form>
+
+        {error ? (
+          <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-3 text-xs text-signal flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

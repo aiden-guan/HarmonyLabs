@@ -12,7 +12,7 @@ const sans = Familjen_Grotesk({
 
 const mono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-plex-mono",
 });
 
@@ -24,8 +24,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "FaceLab",
-    template: "%s · FaceLab",
+    default: "MogLabs",
+    template: "%s · MogLabs",
   },
   description:
     "Measure facial geometry from front and profile photographs using landmarks, ratios, and a transparent reference score.",

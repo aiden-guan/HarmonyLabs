@@ -13,16 +13,7 @@ export default async function EditAnalysisPage({ params }: { params: Promise<{ a
   if (!analysis) notFound();
   return (
     <AppShell>
-      <div className="px-4 py-5 sm:px-5 sm:py-8">
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted">Landmarks</p>
-        <h1 className="mt-2 text-2xl tracking-tight sm:text-3xl">{analysis.name}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Drag a point, or select it and use the arrow keys. Coordinates stay between 0 and 1 so the overlay follows the photograph when the window changes size.
-        </p>
-        <div className="mt-6">
-          <LandmarkEditor analysis={analysis} />
-        </div>
-      </div>
+      <LandmarkEditor analysis={analysis} />
     </AppShell>
   );
 }

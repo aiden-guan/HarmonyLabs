@@ -22,7 +22,7 @@ export function explainStructured(question: string, context: AnalysisContext): s
   const highest = [...lowest].reverse();
   const preface = context.analysis.isSample
     ? "This report uses a geometric diagram, not a photograph of a person."
-    : "Proportional Harmony compares measurements with FaceLab's experimental reference ranges. It is not a measure of attractiveness.";
+    : "Proportional Harmony compares measurements with MogLabs' experimental reference ranges. It is not a measure of attractiveness.";
 
   if (q.includes("impact")) {
     const impacts = [...metrics]

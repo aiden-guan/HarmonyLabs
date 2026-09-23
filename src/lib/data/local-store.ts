@@ -98,27 +98,48 @@ function emptyDb(): LocalDb {
   };
 }
 
+let cachedDb: LocalDb | null = null;
+
 async function readDb(): Promise<LocalDb> {
-  try {
-    const raw = await readFile(dbPath(), "utf8");
-    return { ...emptyDb(), ...JSON.parse(raw) } as LocalDb;
-  } catch {
-    return emptyDb();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const raw = await readFile(dbPath(), "utf8");
+      const parsed = { ...emptyDb(), ...JSON.parse(raw) } as LocalDb;
+      cachedDb = parsed;
+      return parsed;
+    } catch (err: unknown) {
+      const nodeErr = err as { code?: string };
+      if (nodeErr?.code === "ENOENT" && attempt === 0 && !cachedDb) {
+        return emptyDb();
+      }
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        continue;
+      }
+      if (cachedDb) return cachedDb;
+      return emptyDb();
+    }
   }
+  return cachedDb ?? emptyDb();
 }
 
 async function writeDb(db: LocalDb): Promise<void> {
   const dir = dataDir();
   await mkdir(dir, { recursive: true });
-  const temp = path.join(dir, `store.${process.pid}.tmp`);
+  const temp = path.join(dir, `store.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
   await writeFile(temp, JSON.stringify(db));
   await rename(temp, dbPath());
 }
 
 function locked<T>(work: (db: LocalDb) => Promise<T>): Promise<T> {
   const run = queue.then(async () => {
-    const db = await readDb();
+    const diskDb = await readDb();
+    let db = diskDb;
+    if (cachedDb && cachedDb.analyses.length > diskDb.analyses.length) {
+      db = cachedDb;
+    }
     const result = await work(db);
+    cachedDb = db;
     await writeDb(db);
     return result;
   });

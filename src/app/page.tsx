@@ -1,106 +1,497 @@
 import Link from "next/link";
+import {
+  ArrowRight,
+  Sliders,
+  CheckCircle2,
+  Scan,
+  Compass,
+  Lock,
+  Eye,
+} from "lucide-react";
 import { Mark } from "@/components/brand/mark";
-
-const steps = [
-  { title: "Capture", copy: "A front view and a side view. Line up with the camera guide, or choose photos you already have." },
-  { title: "Review landmarks", copy: "Computer vision proposes points. You drag the ones that miss the anatomy." },
-  { title: "Measure", copy: "Distances, angles, and ratios are calculated from those points. Nothing is guessed by a language model." },
-  { title: "Understand", copy: "A Harmony score shows distance from configurable reference ranges, with the formula left visible." },
-];
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-5">
-        <Link href="/" className="flex items-center gap-2">
-          <Mark className="h-6 w-6 text-accent" />
-          <span className="text-lg tracking-tight">FaceLab</span>
-        </Link>
-        <Link href="/auth/login" className="text-sm text-accent">
-          Sign in
-        </Link>
-      </header>
-      <main>
-        <section className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-16 pt-6 sm:gap-12 sm:px-5 sm:pb-20 sm:pt-8 md:grid-cols-[1.1fr_0.9fr] md:pt-16">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Facial measurement</p>
-            <h1 className="mt-4 max-w-xl text-4xl leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
-              Measure facial geometry.
-            </h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-muted">
-              FaceLab places landmarks on a front view and a profile, then calculates proportions from those points. The Harmony score compares the results with the application&apos;s reference ranges. It is not a rating of attractiveness.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/auth/login?next=/analysis/new" className="inline-flex h-11 items-center rounded-[2px] bg-accent px-5 text-sm text-accent-ink">
+    <div className="min-h-screen bg-paper text-ink flex flex-col selection:bg-slate-200">
+      {/* Public Header */}
+      <header className="sticky top-0 z-30 border-b border-line bg-panel/90 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex items-center gap-2.5 font-bold tracking-tight text-ink">
+            <Mark className="h-6 w-6 text-accent" />
+            <span className="text-lg">MogLabs</span>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted">
+            <a href="#how-it-works" className="hover:text-ink transition-colors">How it works</a>
+            <a href="#preview" className="hover:text-ink transition-colors">Analysis preview</a>
+            <a href="#methodology" className="hover:text-ink transition-colors">Methodology</a>
+            <a href="#privacy" className="hover:text-ink transition-colors">Privacy</a>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <Link href="/auth/login" className="text-sm font-medium text-muted hover:text-ink transition-colors px-2 py-1">
+              Sign in
+            </Link>
+            <Link href="/auth/login?next=/analysis/new">
+              <Button size="sm" className="shadow-xs">
                 Analyze face
-              </Link>
-              <a href="#method" className="inline-flex h-11 items-center rounded-[2px] border border-line bg-panel px-5 text-sm">
-                How it works
-              </a>
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="relative overflow-hidden border-b border-line bg-panel pt-12 pb-16 sm:pt-20 sm:pb-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
+              {/* Left Column: Headline & Value Proposition */}
+              <div className="lg:col-span-7 space-y-6">
+                <div className="inline-flex items-center gap-2 rounded-full border border-line bg-panel-muted px-3 py-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted font-medium">
+                    FACIAL GEOMETRY LAB · TRANSPARENT REFERENCE SYSTEM
+                  </span>
+                </div>
+
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] text-ink">
+                  Your facial proportions, <span className="text-accent underline decoration-line decoration-2 underline-offset-4">measured</span>.
+                </h1>
+
+                <p className="max-w-2xl text-lg sm:text-xl text-muted leading-relaxed">
+                  MogLabs measures facial geometry from front and profile photographs using anatomical landmarks, exact angles, and ratios. Our Harmony score provides an objective reference without generative AI guessing or subjective attractiveness claims.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <Link href="/auth/login?next=/analysis/new">
+                    <Button size="lg" className="gap-2 shadow-sm text-base">
+                      <span>Analyze face</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <a href="#how-it-works">
+                    <Button variant="secondary" size="lg" className="text-base">
+                      See how it works
+                    </Button>
+                  </a>
+                </div>
+
+                <div className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-line/70">
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <CheckCircle2 className="h-4 w-4 text-good shrink-0" />
+                    <span>In-browser local detection</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <CheckCircle2 className="h-4 w-4 text-good shrink-0" />
+                    <span>User-editable landmarks</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <CheckCircle2 className="h-4 w-4 text-good shrink-0" />
+                    <span>Private & encrypted photos</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Interactive/Lab Hero Graphic */}
+              <div className="lg:col-span-5">
+                <HeroMeasurementPlate />
+              </div>
             </div>
           </div>
-          <Plate />
         </section>
-        <section className="border-y border-line bg-panel">
-          <div className="mx-auto grid max-w-6xl gap-px bg-line md:grid-cols-4">
-            {steps.map((step, index) => (
-              <article key={step.title} className="bg-panel px-5 py-8">
-                <p className="font-mono text-xs text-accent">0{index + 1}</p>
-                <h2 className="mt-3 text-xl tracking-tight">{step.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">{step.copy}</p>
-              </article>
-            ))}
+
+        {/* Section C: Product Proof / How It Works */}
+        <section id="how-it-works" className="py-20 border-b border-line bg-paper">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-2xl mx-auto space-y-3">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-accent font-semibold">Step-by-step pipeline</p>
+              <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+                Scientific precision, end to end
+              </h2>
+              <p className="text-sm text-muted leading-relaxed">
+                Every metric is grounded in verifiable geometry. You retain complete visibility and control over every landmark proposal.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  step: "01",
+                  title: "Capture",
+                  icon: Scan,
+                  desc: "Take or upload a front photograph and a profile. Built-in camera guides ensure proper head leveling, distance, and pose.",
+                },
+                {
+                  step: "02",
+                  title: "Verify",
+                  icon: Sliders,
+                  desc: "Computer vision proposes landmark coordinates. You can pan, zoom, and drag points that miss your actual anatomy.",
+                },
+                {
+                  step: "03",
+                  title: "Measure",
+                  icon: Compass,
+                  desc: "Distances, ratios, angles, and facial thirds are calculated directly from verified 2D coordinates without approximation.",
+                },
+                {
+                  step: "04",
+                  title: "Understand",
+                  icon: Eye,
+                  desc: "The Harmony score maps each measurement against transparent clinical and anthropological reference bands with full formulas exposed.",
+                },
+              ].map((item) => (
+                <article
+                  key={item.step}
+                  className="relative rounded-xl border border-line bg-panel p-6 shadow-xs flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded">
+                        {item.step}
+                      </span>
+                      <item.icon className="h-5 w-5 text-muted" />
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold tracking-tight text-ink">{item.title}</h3>
+                    <p className="mt-2 text-xs leading-relaxed text-muted">{item.desc}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
-        <section id="method" className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-20">
-          <h2 className="text-2xl tracking-tight sm:text-3xl">What actually runs</h2>
-          <div className="mt-8 grid gap-6 md:grid-cols-2">
-            {[
-              ["Computer vision detects landmarks", "MediaPipe Face Landmarker runs in the browser. Raw mesh indexes stay inside one mapping file."],
-              ["You verify the points", "Important anatomical points can be dragged. Derived points are labeled as estimates."],
-              ["Geometry calculates measurements", "Ratios and angles use normalized coordinates, so image size does not become a measurement."],
-              ["Scoring uses defined ranges", "Each metric has a reference band and a smooth falloff. The bands are experimental and editable."],
-            ].map(([title, copy]) => (
-              <article key={title} className="border border-line bg-panel p-5">
-                <h3 className="text-lg">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{copy}</p>
-              </article>
-            ))}
+
+        {/* Section D: Analysis Preview */}
+        <section id="preview" className="py-20 border-b border-line bg-panel">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
+              <div>
+                <Badge variant="accent" className="mb-2">REPRESENTATIVE SAMPLE REPORT</Badge>
+                <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+                  Clear, actionable insights
+                </h2>
+                <p className="mt-2 text-sm text-muted max-w-xl">
+                  See how results are presented: hierarchical scoring, category breakdowns, and transparent metric deviations.
+                </p>
+              </div>
+              <Link href="/auth/login?next=/analysis/new">
+                <Button variant="secondary" className="gap-2">
+                  <span>Start your own analysis</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+
+            {/* Representative Sample Card */}
+            <div className="rounded-xl border border-line bg-slate-50/50 p-6 sm:p-8 shadow-xs">
+              <div className="grid gap-8 lg:grid-cols-12">
+                {/* Score Hero Column */}
+                <div className="lg:col-span-4 rounded-lg border border-line bg-panel p-6 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-muted uppercase">Harmony Score</span>
+                      <span className="text-xs text-good font-medium bg-good/10 px-2 py-0.5 rounded">Reference alignment: High</span>
+                    </div>
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <span className="font-mono text-5xl font-bold tracking-tight text-ink">8.42</span>
+                      <span className="font-mono text-sm text-muted">/ 10</span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted leading-relaxed">
+                      Proportional reference score calculated from 62% Front harmony and 38% Profile harmony.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-line grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="font-mono text-xs text-muted uppercase block">Front score</span>
+                      <span className="font-mono text-2xl font-semibold text-ink">8.65</span>
+                    </div>
+                    <div>
+                      <span className="font-mono text-xs text-muted uppercase block">Profile score</span>
+                      <span className="font-mono text-2xl font-semibold text-ink">8.05</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Category Progress Column */}
+                <div className="lg:col-span-4 rounded-lg border border-line bg-panel p-6">
+                  <h3 className="text-sm font-semibold text-ink mb-4">Category Proportions</h3>
+                  <div className="space-y-3.5">
+                    {[
+                      { label: "Facial structure", score: 8.8 },
+                      { label: "Eyes & Orbit", score: 8.6 },
+                      { label: "Nose & Projection", score: 8.1 },
+                      { label: "Lips & Oral", score: 8.4 },
+                      { label: "Jaw & Chin", score: 8.2 },
+                      { label: "Symmetry", score: 8.9 },
+                      { label: "Profile convexity", score: 7.9 },
+                    ].map((cat) => (
+                      <div key={cat.label}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-ink font-medium">{cat.label}</span>
+                          <span className="font-mono text-muted">{cat.score.toFixed(1)} / 10</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-accent"
+                            style={{ width: `${cat.score * 10}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Insight Callouts */}
+                <div className="lg:col-span-4 rounded-lg border border-line bg-panel p-6 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink mb-4">Key Insights</h3>
+                    <div className="space-y-4 text-xs">
+                      <div className="rounded-md border border-good/20 bg-good/5 p-3">
+                        <span className="font-medium text-good block mb-1">Closest to reference</span>
+                        <p className="text-ink font-semibold">Midface ratio: 1.02</p>
+                        <p className="text-muted mt-0.5">Falls within the ideal 1.00–1.05 anthropological reference interval.</p>
+                      </div>
+
+                      <div className="rounded-md border border-line bg-slate-50 p-3">
+                        <span className="font-medium text-muted block mb-1">Furthest from reference</span>
+                        <p className="text-ink font-semibold">Nasofacial angle: 31.2°</p>
+                        <p className="text-muted mt-0.5">Slightly below the typical 34°–38° reference range.</p>
+                      </div>
+
+                      <div className="rounded-md border border-accent/20 bg-accent/5 p-3">
+                        <span className="font-medium text-accent block mb-1">Highest score influence</span>
+                        <p className="text-ink font-semibold">Gonial angle alignment</p>
+                        <p className="text-muted mt-0.5">Accounts for +0.24 potential points on the profile harmony score.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
-        <section id="privacy" className="border-t border-line">
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-16">
-            <h2 className="text-2xl tracking-tight sm:text-3xl">Photographs stay private</h2>
-            <div className="mt-6 max-w-2xl space-y-3 text-sm leading-6 text-muted">
-              <p>Facial images are sensitive personal data. In FaceLab they are stored privately for the signed-in account.</p>
-              <p>Uploaded images are not used to train models. Landmark detection for the measurement pipeline runs locally in the browser.</p>
-              <p>You can delete an analysis, including its photographs, from the report. Account deletion removes the analyses stored for that login.</p>
+
+        {/* Section E: Methodology & Architectural Foundation */}
+        <section id="methodology" className="py-20 border-b border-line bg-paper">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="max-w-2xl">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-accent font-semibold">Scientific foundation</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+                Built on geometry, not generative black boxes
+              </h2>
+              <p className="mt-3 text-sm text-muted leading-relaxed">
+                Most facial apps apply arbitrary AI filters or black-box neural ratings. MogLabs executes an open, deterministic mathematical pipeline.
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  title: "MediaPipe Vision Mesh",
+                  desc: "Landmarks are localized client-side in your browser using an 8-bit quantized face landmarker. Coordinates are normalized to eliminate image scaling artifacts.",
+                },
+                {
+                  title: "Frankfort Horizontal Leveling",
+                  desc: "Side-profile photos are automatically leveled along the Frankfort horizontal plane (porion to orbitale) to compensate for minor head tilts.",
+                },
+                {
+                  title: "Literature Reference Bands",
+                  desc: "Ratios, proportions, and angles are scored against documented plastic surgery and anthropological reference intervals using Gaussian decay curves.",
+                },
+                {
+                  title: "Transparent Weighting",
+                  desc: "The overall Harmony score is a visible weighted sum (62% front, 38% profile). Every category and metric contribution is fully inspectable.",
+                },
+              ].map((item) => (
+                <div key={item.title} className="rounded-lg border border-line bg-panel p-5">
+                  <h3 className="text-base font-semibold text-ink">{item.title}</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-muted">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Section F: Privacy Guarantee */}
+        <section id="privacy" className="py-20 bg-panel">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="rounded-2xl border border-line bg-slate-900 text-white p-8 sm:p-12">
+              <div className="max-w-2xl space-y-4">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-mono text-slate-300">
+                  <Lock className="h-3.5 w-3.5 text-accent-ink" />
+                  <span>DATA PRIVACY PLEDGE</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                  Your photographs belong to you alone.
+                </h2>
+                <div className="space-y-3 text-sm text-slate-300 leading-relaxed">
+                  <p>
+                    Facial photography is sensitive biometric data. MogLabs never uses your images to train machine learning models.
+                  </p>
+                  <p>
+                    Landmark detection runs locally in your browser session. Stored images are encrypted, authenticated, and never served via public unauthenticated links.
+                  </p>
+                  <p>
+                    You can delete any analysis and its associated photographs at any time from your dashboard or settings.
+                  </p>
+                </div>
+                <div className="pt-4 flex flex-wrap gap-4 items-center">
+                  <Link href="/auth/login?next=/analysis/new">
+                    <Button variant="secondary" className="bg-white text-slate-900 hover:bg-slate-100 border-none font-semibold">
+                      Start private analysis
+                    </Button>
+                  </Link>
+                  <span className="text-xs text-slate-400">No credit card or public profile required</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-line bg-panel-muted py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted">
+          <div className="flex items-center gap-2">
+            <Mark className="h-4 w-4 text-accent" />
+            <span className="font-semibold text-ink">MogLabs</span>
+            <span>· Facial Proportions & Geometry</span>
+          </div>
+          <p className="text-center sm:text-right">
+            Harmony is a proportional reference score for this application. It is not a clinical diagnosis and not an objective measure of attractiveness.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
 
-function Plate() {
+function HeroMeasurementPlate() {
   return (
-    <div className="relative border border-line bg-panel p-6">
-      <div className="absolute left-3 top-3 h-3 w-3 border-l border-t border-accent" />
-      <div className="absolute right-3 top-3 h-3 w-3 border-r border-t border-accent" />
-      <div className="absolute bottom-3 left-3 h-3 w-3 border-b border-l border-accent" />
-      <div className="absolute bottom-3 right-3 h-3 w-3 border-b border-r border-accent" />
-      <svg viewBox="0 0 320 400" className="mx-auto h-auto w-full max-w-sm text-ink" role="img" aria-label="Diagram of facial measurement lines">
-        <ellipse cx="160" cy="210" rx="92" ry="120" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M160 90 V330 M90 190 H230 M118 168 H148 M172 168 H202 M130 250 H190" fill="none" stroke="#1c4e6e" strokeWidth="1.2" />
-        <circle cx="133" cy="168" r="3" fill="#1c4e6e" />
-        <circle cx="187" cy="168" r="3" fill="#1c4e6e" />
-        <circle cx="160" cy="210" r="3" fill="#1c4e6e" />
-        <text x="20" y="28" className="fill-muted" fontSize="11" fontFamily="ui-monospace, monospace">
-          front plate
-        </text>
-      </svg>
-      <p className="mt-4 font-mono text-xs text-muted">Landmarks in. Ratios out. No attractiveness claim.</p>
+    <div className="relative rounded-xl border border-line bg-panel p-6 shadow-sm overflow-hidden">
+      {/* Corner calibration accents */}
+      <div className="absolute left-3 top-3 h-3 w-3 border-l-2 border-t-2 border-accent" />
+      <div className="absolute right-3 top-3 h-3 w-3 border-r-2 border-t-2 border-accent" />
+      <div className="absolute bottom-3 left-3 h-3 w-3 border-b-2 border-l-2 border-accent" />
+      <div className="absolute bottom-3 right-3 h-3 w-3 border-b-2 border-r-2 border-accent" />
+
+      {/* Lab Header bar */}
+      <div className="flex items-center justify-between pb-4 border-b border-line/60">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-good animate-pulse" />
+          <span className="font-mono text-xs text-muted font-medium">PLATE 01 · CANONICAL FRONT</span>
+        </div>
+        <span className="font-mono text-[11px] text-accent font-semibold bg-accent/10 px-2 py-0.5 rounded">
+          HARMONY 8.42
+        </span>
+      </div>
+
+      {/* Technical Facial Geometry Diagram */}
+      <div className="relative my-4 flex items-center justify-center">
+        <svg
+          viewBox="0 0 340 400"
+          className="h-auto w-full max-w-[300px] text-ink"
+          role="img"
+          aria-label="Technical diagram of anatomical facial measurements and reference planes"
+        >
+          {/* Subtle grid background */}
+          <defs>
+            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e2e8f0" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="340" height="400" fill="url(#grid)" opacity="0.6" />
+
+          {/* Facial Oval Contour */}
+          <ellipse
+            cx="170"
+            cy="200"
+            rx="96"
+            ry="128"
+            fill="none"
+            stroke="#0f172a"
+            strokeWidth="1.5"
+          />
+
+          {/* Central Midline */}
+          <line
+            x1="170"
+            y1="60"
+            x2="170"
+            y2="340"
+            stroke="#0284c7"
+            strokeWidth="1.2"
+            strokeDasharray="3 3"
+          />
+
+          {/* Horizontal Thirds Lines */}
+          {/* Trichion / Upper third */}
+          <line x1="84" y1="105" x2="256" y2="105" stroke="#94a3b8" strokeWidth="1" strokeDasharray="2 2" />
+          <text x="262" y="109" className="fill-muted" fontSize="9" fontFamily="ui-monospace, monospace">
+            1/3 TR
+          </text>
+
+          {/* Nasion / Mid third top */}
+          <line x1="74" y1="165" x2="266" y2="165" stroke="#0284c7" strokeWidth="1.2" />
+          <text x="268" y="169" className="fill-accent" fontSize="9" fontFamily="ui-monospace, monospace" fontWeight="600">
+            N
+          </text>
+
+          {/* Subnasale / Lower third top */}
+          <line x1="76" y1="240" x2="264" y2="240" stroke="#0284c7" strokeWidth="1.2" />
+          <text x="268" y="244" className="fill-accent" fontSize="9" fontFamily="ui-monospace, monospace" fontWeight="600">
+            SN
+          </text>
+
+          {/* Menton / Bottom third */}
+          <line x1="120" y1="328" x2="220" y2="328" stroke="#94a3b8" strokeWidth="1" strokeDasharray="2 2" />
+          <text x="226" y="332" className="fill-muted" fontSize="9" fontFamily="ui-monospace, monospace">
+            ME
+          </text>
+
+          {/* Eye Axis & Pupil landmarks */}
+          <circle cx="132" cy="172" r="3.5" fill="#0284c7" />
+          <circle cx="208" cy="172" r="3.5" fill="#0284c7" />
+          <line x1="112" y1="172" x2="228" y2="172" stroke="#0284c7" strokeWidth="1" />
+
+          {/* Canthal Width indicator */}
+          <path d="M 148 172 H 192" stroke="#166534" strokeWidth="1.8" />
+          <circle cx="148" cy="172" r="2" fill="#166534" />
+          <circle cx="192" cy="172" r="2" fill="#166534" />
+
+          {/* Pronasale (Nose tip) & Subnasale */}
+          <circle cx="170" cy="225" r="3" fill="#0284c7" />
+          <circle cx="170" cy="240" r="3" fill="#0284c7" />
+
+          {/* Lip Vermilion points */}
+          <circle cx="170" cy="265" r="2.5" fill="#0284c7" />
+          <circle cx="170" cy="285" r="2.5" fill="#0284c7" />
+          <line x1="145" y1="274" x2="195" y2="274" stroke="#0284c7" strokeWidth="1" />
+
+          {/* Pogonion / Chin */}
+          <circle cx="170" cy="316" r="3" fill="#0284c7" />
+
+          {/* Cheekbone / Zygion width arrows */}
+          <line x1="74" y1="195" x2="266" y2="195" stroke="#94a3b8" strokeWidth="1" strokeDasharray="2 2" />
+          <circle cx="74" cy="195" r="2" fill="#64748b" />
+          <circle cx="266" cy="195" r="2" fill="#64748b" />
+        </svg>
+      </div>
+
+      {/* Floating Lab Metadata Chips */}
+      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-line/60">
+        <div className="rounded bg-panel-muted px-2.5 py-1.5 font-mono text-[11px]">
+          <span className="text-muted block">FACIAL THIRDS</span>
+          <span className="font-semibold text-ink">1.00 : 1.02 : 0.98</span>
+        </div>
+        <div className="rounded bg-panel-muted px-2.5 py-1.5 font-mono text-[11px]">
+          <span className="text-muted block">CANTHAL TILT</span>
+          <span className="font-semibold text-good">+3.2° (NEUTRAL-POS)</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,9 +2,18 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  RotateCcw,
+  Undo2,
+  Redo2,
+  ArrowRight,
+} from "lucide-react";
 import { FaceStage } from "@/components/face-overlay/face-stage";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LANDMARK_GUIDE, landmarkKeysForView } from "@/lib/face/semantic-landmarks";
+import { cn } from "@/lib/utils";
 import type { AnalysisDetail } from "@/lib/data/model";
 import type { FaceView, SemanticLandmark, SemanticLandmarkKey } from "@/types/face";
 
@@ -141,81 +150,187 @@ export function LandmarkEditor({ analysis }: { analysis: AnalysisDetail }) {
   }
 
   if (!photo) {
-    return <p className="p-6 text-sm">This analysis is missing the {view} photograph.</p>;
+    return (
+      <div className="rounded-lg border border-line bg-panel p-8 text-center">
+        <p className="text-sm text-muted">This analysis is missing the {view} photograph.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div>
-        <p className="mb-3 text-sm text-muted md:hidden">
-          Precise dragging is easier on a larger screen. You can still select a point and nudge it with the arrow keys.
-        </p>
-        <div className="mb-3 flex gap-2">
-          {(["front", "profile"] as FaceView[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setView(item);
-                viewRef.current = item;
-                setSelected(landmarkKeysForView(item)[0] ?? null);
-              }}
-              className={`h-9 px-3 text-sm ${view === item ? "bg-accent text-accent-ink" : "border border-line bg-panel"}`}
-            >
-              {item === "front" ? "Front" : "Profile"}
-            </button>
-          ))}
-        </div>
-        <FaceStage
-          src={`/api/analyses/${analysis.id}/photos/${view}`}
-          width={photo.width}
-          height={photo.height}
-          landmarks={current}
-          interactive
-          selected={selected}
-          onSelect={setSelected}
-          onMove={updatePoint}
-          onCommit={commit}
-        />
-      </div>
-      <aside className="space-y-4">
-        <div className="border border-line bg-panel p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted">Selected</p>
-          <h2 className="mt-2 text-xl">{selectedLandmark ? LANDMARK_GUIDE[selectedLandmark.key].label : "None"}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            {selectedLandmark ? LANDMARK_GUIDE[selectedLandmark.key].hint : "Choose a point on the photograph."}
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      {/* Top Header & View Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-line pb-4">
+        <div>
+          <span className="font-mono text-xs uppercase tracking-[0.16em] text-accent font-semibold block">
+            LANDMARK VERIFICATION{analysis.name ? ` · ${analysis.name}` : ""}
+          </span>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">
+            Review proposed landmarks
+          </h1>
+          <p className="mt-0.5 text-xs text-muted">
+            Drag any point to adjust coordinates. Arrow keys nudge selected point (Shift for larger step).
           </p>
-          {selectedLandmark ? (
-            <p className="mt-3 font-mono text-sm">
-              Detected confidence {Math.round(selectedLandmark.confidence * 100)}%
-              <span className="mt-1 block text-muted">Source {selectedLandmark.source}</span>
-            </p>
-          ) : null}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={reset}>Reset</Button>
-            <Button variant="secondary" onClick={undo}>Undo</Button>
-            <Button variant="secondary" onClick={redo}>Redo</Button>
+        </div>
+
+        {/* View Switcher Pills */}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border border-line bg-panel-muted p-1 text-xs">
+            {(["front", "profile"] as FaceView[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setView(item);
+                  viewRef.current = item;
+                  setSelected(landmarkKeysForView(item)[0] ?? null);
+                }}
+                className={cn(
+                  "rounded-[4px] px-3.5 py-1.5 font-medium transition-colors",
+                  view === item
+                    ? "bg-panel text-accent font-semibold shadow-xs"
+                    : "text-muted hover:text-ink",
+                )}
+              >
+                {item === "front" ? "Front view" : "Profile view"}
+              </button>
+            ))}
           </div>
         </div>
-        <ul className="max-h-72 space-y-1 overflow-auto border border-line bg-panel p-2">
-          {current.map((landmark) => (
-            <li key={landmark.key}>
-              <button
-                type="button"
-                onClick={() => setSelected(landmark.key)}
-                className={`flex w-full items-center justify-between px-2 py-1.5 text-left text-sm ${selected === landmark.key ? "bg-white text-accent" : ""}`}
-              >
-                <span>{LANDMARK_GUIDE[landmark.key].label}</span>
-                <span className="font-mono text-xs text-muted">{Math.round(landmark.confidence * 100)}%</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {error ? <p role="alert" className="text-sm text-signal">{error}</p> : null}
-        <Button onClick={continueFlow} disabled={pending} className="w-full">
-          {pending ? "Saving…" : view === "front" ? "Continue to profile" : "Calculate measurements"}
-        </Button>
-      </aside>
+      </div>
+
+      {/* Main Grid: Face Stage + Sidebar */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
+        {/* Left: Interactive Canvas */}
+        <div className="space-y-3">
+          <div className="rounded-xl border border-line bg-slate-900 overflow-hidden shadow-xs">
+            <FaceStage
+              src={`/api/analyses/${analysis.id}/photos/${view}`}
+              width={photo.width}
+              height={photo.height}
+              landmarks={current}
+              interactive
+              selected={selected}
+              onSelect={setSelected}
+              onMove={updatePoint}
+              onCommit={commit}
+            />
+          </div>
+
+          <p className="text-[11px] text-muted text-center">
+            Scroll or pinch to zoom. Click and drag background to pan. Click any point to select.
+          </p>
+        </div>
+
+        {/* Right Sidebar: Selected Landmark Detail + List */}
+        <aside className="space-y-4">
+          {/* Selected Landmark Card */}
+          <Card className="border border-line bg-panel shadow-xs">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted font-medium">
+                  SELECTED LANDMARK
+                </span>
+                {selectedLandmark ? (
+                  <Badge variant={selectedLandmark.source === "manual" ? "accent" : "outline"}>
+                    {selectedLandmark.source === "manual" ? "Adjusted" : "Auto-detected"}
+                  </Badge>
+                ) : null}
+              </div>
+              <CardTitle className="text-lg">
+                {selectedLandmark ? LANDMARK_GUIDE[selectedLandmark.key].label : "None selected"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted leading-relaxed">
+                {selectedLandmark
+                  ? LANDMARK_GUIDE[selectedLandmark.key].hint
+                  : "Click a landmark on the photograph to inspect and reposition it."}
+              </p>
+
+              {selectedLandmark ? (
+                <div className="flex items-center justify-between pt-2 border-t border-line/60 font-mono text-xs text-muted">
+                  <span>Confidence</span>
+                  <span className="font-semibold text-ink">
+                    {Math.round(selectedLandmark.confidence * 100)}%
+                  </span>
+                </div>
+              ) : null}
+
+              {/* History Controls */}
+              <div className="flex items-center gap-1.5 pt-3 border-t border-line/60">
+                <Button variant="secondary" size="sm" onClick={reset} className="flex-1 gap-1 text-xs">
+                  <RotateCcw className="h-3 w-3" />
+                  <span>Reset</span>
+                </Button>
+                <Button variant="secondary" size="sm" onClick={undo} className="flex-1 gap-1 text-xs">
+                  <Undo2 className="h-3 w-3" />
+                  <span>Undo</span>
+                </Button>
+                <Button variant="secondary" size="sm" onClick={redo} className="flex-1 gap-1 text-xs">
+                  <Redo2 className="h-3 w-3" />
+                  <span>Redo</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Landmarks Navigation List */}
+          <Card className="border border-line bg-panel shadow-xs">
+            <CardHeader className="py-2.5 px-4 border-b border-line/60 flex flex-row items-center justify-between">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-muted font-medium">
+                {view === "front" ? "Front" : "Profile"} points ({current.length})
+              </span>
+            </CardHeader>
+            <div className="max-h-60 overflow-y-auto divide-y divide-line/40 p-1">
+              {current.map((landmark) => {
+                const isSelected = selected === landmark.key;
+                return (
+                  <button
+                    key={landmark.key}
+                    type="button"
+                    onClick={() => setSelected(landmark.key)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded px-3 py-1.5 text-left text-xs transition-colors",
+                      isSelected
+                        ? "bg-accent/10 text-accent font-semibold"
+                        : "text-ink hover:bg-slate-50",
+                    )}
+                  >
+                    <span className="truncate">{LANDMARK_GUIDE[landmark.key].label}</span>
+                    <span className="font-mono text-[10px] text-muted shrink-0 ml-2">
+                      {Math.round(landmark.confidence * 100)}%
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
+          {error ? (
+            <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-3 text-xs text-signal">
+              {error}
+            </div>
+          ) : null}
+
+          {/* Flow Progression Button */}
+          <Button
+            onClick={continueFlow}
+            disabled={pending}
+            className="w-full gap-2 shadow-xs"
+            size="lg"
+          >
+            <span>
+              {pending
+                ? "Saving…"
+                : view === "front"
+                ? "Continue to profile"
+                : "Calculate measurements"}
+            </span>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </aside>
+      </div>
     </div>
   );
 }

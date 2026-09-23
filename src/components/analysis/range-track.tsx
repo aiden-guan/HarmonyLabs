@@ -39,22 +39,22 @@ export function RangeTrack({
   const marker = value === null || !Number.isFinite(value) ? null : Math.min(100, Math.max(0, pct(value)));
   return (
     <div className="mt-3">
-      <div className="relative h-2 bg-[#e1e7ec]" role="img" aria-label={summary}>
-        <Zone left={below.left} width={below.width} className="bg-[#e1e7ec]" />
-        <Zone left={lowAverage.left} width={lowAverage.width} className="bg-[#b7c9d6]" />
-        <Zone left={great.left} width={great.width} className="bg-accent" />
-        <Zone left={highAverage.left} width={highAverage.width} className="bg-[#b7c9d6]" />
-        <Zone left={above.left} width={above.width} className="bg-[#e1e7ec]" />
+      <div className="relative h-2.5 overflow-hidden rounded-full bg-slate-100 border border-line/60" role="img" aria-label={summary}>
+        <Zone left={below.left} width={below.width} className="bg-slate-100" />
+        <Zone left={lowAverage.left} width={lowAverage.width} className="bg-slate-200/90" />
+        <Zone left={great.left} width={great.width} className="bg-accent/80" />
+        <Zone left={highAverage.left} width={highAverage.width} className="bg-slate-200/90" />
+        <Zone left={above.left} width={above.width} className="bg-slate-100" />
         {marker !== null ? (
           <div
-            className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-ink bg-white"
+            className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-ink bg-white shadow-xs transition-all duration-150"
             style={{ left: `calc(${marker}% - 7px)` }}
           />
         ) : null}
       </div>
-      <div className="mt-1 flex justify-between font-mono text-[10px] text-muted">
+      <div className="mt-1.5 flex justify-between font-mono text-[10px] text-muted">
         <span>Below usual</span>
-        <span>Great</span>
+        <span className="font-semibold text-accent">Great</span>
         <span>Above usual</span>
       </div>
       <p className="mt-1 text-xs leading-5 text-muted">

@@ -4,16 +4,18 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  Share2,
+  Sliders,
+  GitCompare,
+  Trash2,
+  Search,
+  Layers,
+  Calendar,
+} from "lucide-react";
 import { FaceStage } from "@/components/face-overlay/face-stage";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { METRICS } from "@/lib/face/metrics";
 import { formatLongWhen, formatMetricValue, formatScore } from "@/lib/format";
 import type { AnalysisDetail, StoredMetric } from "@/lib/data/model";
@@ -22,13 +24,28 @@ import { CATEGORY_LABELS } from "@/types/face";
 import { AskPanel } from "@/components/analysis/ask-panel";
 import { RangeTrack } from "@/components/analysis/range-track";
 import { measurementScale, rangeStanding, STANDING_LABEL } from "@/lib/face/scoring/placement";
+import { ResultShareDialog } from "@/components/share/result-share-dialog";
+import { cn } from "@/lib/utils";
 
-const filters = ["all", "facialStructure", "eyes", "nose", "lips", "jaw", "profile", "symmetry"] as const;
+const categoryFilterKeys = [
+  "all",
+  "facialStructure",
+  "eyes",
+  "nose",
+  "lips",
+  "jaw",
+  "profile",
+  "symmetry",
+] as const;
+
+type AnalysisTab = "overview" | "measurements" | "photos" | "compare" | "ask";
 
 export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"overview" | "measurements" | "photos" | "compare" | "ask">("overview");
+  const [tab, setTab] = useState<AnalysisTab>("overview");
   const [error, setError] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
+
   const metrics = useMemo(
     () =>
       analysis.metrics.map((metric) => ({
@@ -37,10 +54,14 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
       })),
     [analysis.metrics],
   );
+
   const ranked = [...metrics].filter((metric) => metric.score !== null).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const strengths = ranked.filter((metric) => (metric.score ?? 0) >= 8).slice(0, 3);
-  const deviations = [...ranked].reverse().filter((metric) => (metric.score ?? 10) < 9.95).slice(0, 3);
+  const strengths = ranked.filter((metric) => (metric.score ?? 0) >= 8).slice(0, 4);
+  const deviations = [...ranked].reverse().filter((metric) => (metric.score ?? 10) < 9.95).slice(0, 4);
   const impacts = [...metrics].filter((metric) => (metric.impact ?? 0) > 0.005).sort((a, b) => (b.impact ?? 0) - (a.impact ?? 0)).slice(0, 5);
+
+  const isComplete = analysis.status === "complete";
+  const frontPhoto = analysis.photos.find((p) => p.view === "front");
 
   async function remove() {
     if (!window.confirm("Delete this analysis and its photographs?")) return;
@@ -53,57 +74,273 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
     router.refresh();
   }
 
+  const tabItems = [
+    { id: "overview" as const, label: "Overview" },
+    { id: "measurements" as const, label: "Measurements", count: metrics.length },
+    { id: "photos" as const, label: "Photos" },
+    { id: "compare" as const, label: "Compare" },
+    { id: "ask" as const, label: "Ask AI" },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-8">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
-        <div>
-          <p className="text-sm text-muted">{analysis.name}</p>
-          <h1 className="mt-1 text-2xl tracking-tight sm:text-3xl">Analysis</h1>
-          <p className="mt-1 text-sm text-muted">{formatLongWhen(analysis.createdAt)}</p>
-          {analysis.isSample ? (
-            <p className="mt-2 max-w-xl text-sm text-warn">This report uses a drawn diagram, not a photograph of a person.</p>
-          ) : null}
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      {/* RESULT HERO PANEL */}
+      <section className="rounded-xl border border-line bg-panel p-6 sm:p-8 shadow-xs">
+        <div className="grid gap-8 md:grid-cols-12 md:items-center">
+          {/* Left: Front Photo Thumbnail Frame */}
+          <div className="md:col-span-4 lg:col-span-3 flex justify-center md:justify-start">
+            <div className="relative h-56 w-44 sm:h-64 sm:w-48 rounded-lg overflow-hidden border border-line bg-slate-900 shadow-sm shrink-0">
+              {frontPhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/analyses/${analysis.id}/photos/front`}
+                  alt="Front analysis photograph"
+                  className="h-full w-full object-cover object-top select-none"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-slate-500 font-mono text-xs">
+                  No front photo
+                </div>
+              )}
+
+              {/* Lab registration corner accents */}
+              <div className="pointer-events-none absolute inset-0 border border-white/10 rounded-lg" />
+              <div className="absolute left-2.5 top-2.5 h-2 w-2 border-l border-t border-sky-400" />
+              <div className="absolute right-2.5 top-2.5 h-2 w-2 border-r border-t border-sky-400" />
+              <div className="absolute bottom-2.5 left-2.5 h-2 w-2 border-b border-l border-sky-400" />
+              <div className="absolute bottom-2.5 right-2.5 h-2 w-2 border-b border-r border-sky-400" />
+            </div>
+          </div>
+
+          {/* Right: Scores, Metadata & Primary Actions */}
+          <div className="md:col-span-8 lg:col-span-9 flex flex-col justify-between space-y-6">
+            <div>
+              {/* Header Title Row */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs uppercase tracking-[0.16em] text-accent font-semibold">
+                      FACIAL MEASUREMENT REPORT
+                    </span>
+                    {analysis.isSample ? (
+                      <Badge variant="warning">Geometric Sample</Badge>
+                    ) : null}
+                    {analysis.confidence ? (
+                      <Badge variant={analysis.confidence === "High" ? "success" : "default"}>
+                        Confidence: {analysis.confidence}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+                    {analysis.name || "Analysis Report"}
+                  </h1>
+                  <p className="mt-0.5 text-xs text-muted flex items-center gap-1.5 font-mono">
+                    <Calendar className="h-3 w-3 text-muted/70" />
+                    <span>{formatLongWhen(analysis.createdAt)}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Score Presentation Hero */}
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 border-y border-line/60 py-4">
+                {/* Primary Harmony Score */}
+                <div>
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-accent font-semibold block">
+                    Proportional harmony
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5 font-mono">
+                    <span className="text-4xl sm:text-5xl font-bold text-ink tracking-tight">
+                      {isComplete ? formatScore(analysis.harmonyScore) : "—"}
+                    </span>
+                    {isComplete ? (
+                      <span className="text-sm text-muted/70 font-normal">/ 10</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs text-muted leading-tight">
+                    Geometric reference score, not attractiveness.
+                  </p>
+                </div>
+
+                {/* Front Score */}
+                <div className="sm:border-l sm:border-line/60 sm:pl-6">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-muted font-medium block">
+                    Front harmony
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5 font-mono">
+                    <span className="text-3xl sm:text-4xl font-semibold text-ink">
+                      {isComplete ? formatScore(analysis.frontScore) : "—"}
+                    </span>
+                    {isComplete ? (
+                      <span className="text-xs text-muted/70 font-normal">/ 10</span>
+                    ) : null}
+                  </div>
+                  <span className="mt-1 text-xs text-muted block">
+                    62% of composite score
+                  </span>
+                </div>
+
+                {/* Profile Score */}
+                <div className="sm:border-l sm:border-line/60 sm:pl-6">
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-muted font-medium block">
+                    Profile harmony
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5 font-mono">
+                    <span className="text-3xl sm:text-4xl font-semibold text-ink">
+                      {isComplete ? formatScore(analysis.profileScore) : "—"}
+                    </span>
+                    {isComplete ? (
+                      <span className="text-xs text-muted/70 font-normal">/ 10</span>
+                    ) : null}
+                  </div>
+                  <span className="mt-1 text-xs text-muted block">
+                    38% of composite score
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons Toolbar */}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              {isComplete ? (
+                <Button
+                  size="md"
+                  onClick={() => setShareOpen(true)}
+                  className="gap-2 shadow-xs"
+                >
+                  <Share2 className="h-4 w-4" />
+                  <span>Share results</span>
+                </Button>
+              ) : null}
+
+              <Link href={`/analysis/${analysis.id}/edit`}>
+                <Button variant="secondary" size="md" className="gap-2">
+                  <Sliders className="h-4 w-4 text-muted" />
+                  <span>Edit landmarks</span>
+                </Button>
+              </Link>
+
+              <Link href={`/analysis/${analysis.id}/compare`}>
+                <Button variant="secondary" size="md" className="gap-2">
+                  <GitCompare className="h-4 w-4 text-muted" />
+                  <span>Compare</span>
+                </Button>
+              </Link>
+
+              <Button
+                variant="danger"
+                size="md"
+                onClick={remove}
+                className="gap-1.5 ml-auto"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete</span>
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted">Proportional harmony</p>
-          <p className="font-mono text-4xl">{analysis.status === "complete" ? formatScore(analysis.harmonyScore) : "—"}</p>
-          <p className="text-xs text-muted">Geometric reference score, not attractiveness.</p>
+      </section>
+
+      {error ? (
+        <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-4 text-xs text-signal">
+          {error}
         </div>
-      </header>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link href={`/analysis/${analysis.id}/edit`} className="inline-flex h-10 items-center border border-line bg-panel px-4 text-sm">Edit landmarks</Link>
-        <Link href={`/analysis/${analysis.id}/compare`} className="inline-flex h-10 items-center border border-line bg-panel px-4 text-sm">Compare</Link>
-        <Button variant="danger" onClick={remove}>Delete</Button>
-      </div>
-      <div className="mt-6 flex gap-4 overflow-auto border-b border-line text-sm">
-        {(["overview", "measurements", "photos", "compare", "ask"] as const).map((item) => (
-          <button key={item} type="button" onClick={() => setTab(item)} className={`pb-2 capitalize ${tab === item ? "border-b-2 border-accent text-accent" : "text-muted"}`}>
-            {item === "ask" ? "Ask AI" : item}
-          </button>
-        ))}
-      </div>
-      {error ? <p role="alert" className="mt-4 text-sm text-signal">{error}</p> : null}
-      {analysis.status !== "complete" ? (
-        <p className="mt-6 border border-line bg-panel p-4 text-sm">
-          This analysis is not finished. Review the landmarks and calculate measurements to see a Harmony score.
-        </p>
       ) : null}
-      {tab === "overview" && analysis.status === "complete" ? (
-        <Overview analysis={analysis} strengths={strengths} deviations={deviations} impacts={impacts} />
+
+      {!isComplete ? (
+        <div className="rounded-xl border border-line bg-panel p-6 text-sm text-muted leading-relaxed">
+          This analysis is incomplete. Review and confirm landmarks on the front and profile views to compute measurements.
+          <div className="mt-4">
+            <Link href={`/analysis/${analysis.id}/edit`}>
+              <Button size="sm">Resume landmark review</Button>
+            </Link>
+          </div>
+        </div>
       ) : null}
-      {tab === "measurements" ? <Measurements analysis={analysis} metrics={metrics} /> : null}
-      {tab === "photos" ? <Photos analysis={analysis} metrics={metrics} /> : null}
+
+      {/* REPORT TABS NAVIGATION */}
+      <div className="border-b border-line">
+        <div className="flex gap-2 overflow-x-auto scrollbar-none">
+          {tabItems.map((item) => {
+            const isActive = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={cn(
+                  "relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap focus-visible:outline-2 focus-visible:outline-accent",
+                  isActive
+                    ? "text-accent font-semibold"
+                    : "text-muted hover:text-ink",
+                )}
+              >
+                <span>{item.label}</span>
+                {item.count !== undefined ? (
+                  <span className="rounded px-1.5 py-0.2 font-mono text-[10px] bg-slate-100 text-muted">
+                    {item.count}
+                  </span>
+                ) : null}
+                {isActive ? (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* TAB CONTENT PANELS */}
+      {tab === "overview" && isComplete ? (
+        <OverviewPanel
+          analysis={analysis}
+          strengths={strengths}
+          deviations={deviations}
+          impacts={impacts}
+        />
+      ) : null}
+
+      {tab === "measurements" ? (
+        <MeasurementsPanel analysis={analysis} metrics={metrics} />
+      ) : null}
+
+      {tab === "photos" ? (
+        <PhotosPanel analysis={analysis} metrics={metrics} />
+      ) : null}
+
       {tab === "compare" ? (
-        <p className="mt-6 text-sm">
-          Open the <Link className="text-accent" href={`/analysis/${analysis.id}/compare`}>comparison page</Link> to choose a second analysis.
-        </p>
+        <Card className="border border-line bg-panel p-6">
+          <CardHeader className="p-0 pb-3">
+            <CardTitle>Compare analyses</CardTitle>
+            <CardDescription>
+              Select another completed scan from your library to examine delta values and anatomical variations side-by-side.
+            </CardDescription>
+          </CardHeader>
+          <div className="mt-4">
+            <Link href={`/analysis/${analysis.id}/compare`}>
+              <Button className="gap-2">
+                <GitCompare className="h-4 w-4" />
+                <span>Open comparison studio</span>
+              </Button>
+            </Link>
+          </div>
+        </Card>
       ) : null}
-      {tab === "ask" ? <AskPanel analysisId={analysis.id} disabled={analysis.status !== "complete"} /> : null}
+
+      {tab === "ask" ? (
+        <AskPanel analysisId={analysis.id} disabled={!isComplete} />
+      ) : null}
+
+      {/* Share Dialog */}
+      <ResultShareDialog
+        analysis={analysis}
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }
 
-function Overview({
+function OverviewPanel({
   analysis,
   strengths,
   deviations,
@@ -114,115 +351,261 @@ function Overview({
   deviations: Array<StoredMetric & { definition?: { label: string } }>;
   impacts: Array<StoredMetric & { definition?: { label: string } }>;
 }) {
-  const data = analysis.categoryScores.map((category) => ({
-    label: category.label,
-    score: category.score ?? 0,
-  }));
   return (
-    <div className="mt-6 space-y-6">
-      {analysis.confidence ? (
-        <p className="text-sm text-muted">
-          Measurement confidence: {analysis.confidence}. {analysis.qualityNotes.join(" ")}
-        </p>
-      ) : null}
-      <div className="grid gap-4 md:grid-cols-3">
-        <ScoreCard label="Harmony" value={analysis.harmonyScore} />
-        <ScoreCard label="Front" value={analysis.frontScore} />
-        <ScoreCard label="Profile" value={analysis.profileScore} />
-      </div>
-      <div className="h-80 border border-line bg-panel p-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ left: 16, right: 16 }}>
-            <CartesianGrid stroke="#d3dde6" horizontal={false} />
-            <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 12 }} />
-            <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 12 }} />
-            <Tooltip />
-            <Bar dataKey="score" fill="#1c4e6e" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <ListCard title="Strengths" items={strengths} />
-        <ListCard title="Largest deviations" items={deviations} />
-        <article className="border border-line bg-panel p-4">
-          <h2 className="text-sm text-muted">Highest potential score impact</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {impacts.map((metric) => (
-              <li key={metric.metricId} className="flex justify-between gap-3">
-                <span>{metric.definition?.label ?? metric.metricId}</span>
-                <span className="font-mono">+{formatScore(metric.impact)}</span>
-              </li>
-            ))}
-          </ul>
-        </article>
+    <div className="space-y-6">
+      {/* Category Proportions Breakdown */}
+      <Card className="border border-line bg-panel shadow-xs">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Category breakdowns</CardTitle>
+              <CardDescription>
+                Proportional scores evaluated across primary anatomical facial regions (0–10 reference scale).
+              </CardDescription>
+            </div>
+            <span className="font-mono text-xs text-muted">0–10 SCALE</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {analysis.categoryScores.map((cat) => {
+              const score = cat.score ?? 0;
+              const pct = Math.min(100, Math.max(0, score * 10));
+              return (
+                <div
+                  key={cat.category}
+                  className="rounded-lg border border-line/70 bg-slate-50/60 p-4 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-ink">{cat.label}</span>
+                    <span className="font-mono text-sm font-bold text-accent">
+                      {formatScore(cat.score)}
+                    </span>
+                  </div>
+
+                  {/* Progress Track */}
+                  <div className="h-2 w-full rounded-full bg-slate-200/80 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        score >= 8 ? "bg-good" : score >= 6.5 ? "bg-accent" : "bg-warn",
+                      )}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between font-mono text-[10px] text-muted">
+                    <span>Reference: 8.0+</span>
+                    <span>10.0</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3-Column Key Insights Grid */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Closest to Reference */}
+        <Card className="border border-line bg-panel shadow-xs flex flex-col justify-between">
+          <CardHeader className="pb-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-good font-semibold">
+              CLOSEST TO REFERENCE
+            </span>
+            <CardTitle className="text-base">Optimal Proportions</CardTitle>
+            <CardDescription>
+              Measurements that align most closely with ideal anthropological bands.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="divide-y divide-line/60 text-xs">
+              {strengths.length === 0 ? (
+                <li className="py-2.5 text-muted">All scores within normal variance.</li>
+              ) : null}
+              {strengths.map((metric) => (
+                <li key={metric.metricId} className="flex items-center justify-between py-2.5">
+                  <span className="font-medium text-ink truncate mr-2">
+                    {metric.definition?.label ?? metric.metricId}
+                  </span>
+                  <span className="font-mono font-semibold text-good shrink-0">
+                    {formatScore(metric.score)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        {/* Furthest from Reference */}
+        <Card className="border border-line bg-panel shadow-xs flex flex-col justify-between">
+          <CardHeader className="pb-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-warn font-semibold">
+              FURTHEST FROM REFERENCE
+            </span>
+            <CardTitle className="text-base">Largest Deviations</CardTitle>
+            <CardDescription>
+              Proportions with the largest numerical distance from standard literature limits.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="divide-y divide-line/60 text-xs">
+              {deviations.length === 0 ? (
+                <li className="py-2.5 text-muted">No substantial deviations detected.</li>
+              ) : null}
+              {deviations.map((metric) => (
+                <li key={metric.metricId} className="flex items-center justify-between py-2.5">
+                  <span className="font-medium text-ink truncate mr-2">
+                    {metric.definition?.label ?? metric.metricId}
+                  </span>
+                  <span className="font-mono font-semibold text-warn shrink-0">
+                    {formatScore(metric.score)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        {/* Highest Score Influence */}
+        <Card className="border border-line bg-panel shadow-xs flex flex-col justify-between">
+          <CardHeader className="pb-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-accent font-semibold">
+              HIGHEST INFLUENCE
+            </span>
+            <CardTitle className="text-base">Potential Score Gain</CardTitle>
+            <CardDescription>
+              Measurements that would yield the greatest upward change in overall Harmony.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="divide-y divide-line/60 text-xs">
+              {impacts.length === 0 ? (
+                <li className="py-2.5 text-muted">All parameters fully optimized.</li>
+              ) : null}
+              {impacts.map((metric) => (
+                <li key={metric.metricId} className="flex items-center justify-between py-2.5">
+                  <span className="font-medium text-ink truncate mr-2">
+                    {metric.definition?.label ?? metric.metricId}
+                  </span>
+                  <span className="font-mono font-semibold text-accent shrink-0">
+                    +{formatScore(metric.impact)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
 
-function ScoreCard({ label, value }: { label: string; value: number | null }) {
-  return (
-    <article className="border border-line bg-panel p-4">
-      <p className="text-sm text-muted">{label}</p>
-      <p className="mt-2 font-mono text-3xl">{formatScore(value)}</p>
-    </article>
-  );
-}
-
-function ListCard({ title, items }: { title: string; items: Array<StoredMetric & { definition?: { label: string } }> }) {
-  return (
-    <article className="border border-line bg-panel p-4">
-      <h2 className="text-sm text-muted">{title}</h2>
-      <ul className="mt-3 space-y-2 text-sm">
-        {items.length === 0 ? <li>Nothing to list.</li> : null}
-        {items.map((metric) => (
-          <li key={metric.metricId} className="flex justify-between gap-3">
-            <span>{metric.definition?.label ?? metric.metricId}</span>
-            <span className="font-mono">{formatScore(metric.score)}</span>
-          </li>
-        ))}
-      </ul>
-    </article>
-  );
-}
-
-function Measurements({
+function MeasurementsPanel({
   analysis,
   metrics,
 }: {
   analysis: AnalysisDetail;
   metrics: Array<StoredMetric & { definition?: (typeof METRICS)[number] }>;
 }) {
-  const [filter, setFilter] = useState<(typeof filters)[number]>("all");
+  const [filter, setFilter] = useState<(typeof categoryFilterKeys)[number]>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(metrics[0]?.metricId ?? null);
+
   const visible = metrics.filter((metric) => {
     const label = metric.definition?.label ?? metric.metricId;
     const matchesFilter = filter === "all" || metric.category === filter;
     return matchesFilter && label.toLowerCase().includes(query.toLowerCase());
   });
+
   const current = metrics.find((metric) => metric.metricId === selected) ?? visible[0];
+
   return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div>
-        <div className="flex flex-wrap gap-2">
-          {filters.map((item) => (
-            <button key={item} type="button" onClick={() => setFilter(item)} className={`h-8 px-2 text-xs ${filter === item ? "bg-accent text-accent-ink" : "border border-line"}`}>
-              {item === "all" ? "All" : CATEGORY_LABELS[item as MetricCategory]}
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
+      {/* Left Column: Filter pills, Search & Metric List */}
+      <div className="space-y-4">
+        {/* Category Filters */}
+        <div className="flex flex-wrap gap-1.5">
+          {categoryFilterKeys.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setFilter(item)}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                filter === item
+                  ? "border-accent bg-accent text-accent-ink shadow-xs"
+                  : "border-line bg-panel text-muted hover:border-line-strong hover:text-ink",
+              )}
+            >
+              {item === "all" ? "All categories" : CATEGORY_LABELS[item as MetricCategory]}
             </button>
           ))}
         </div>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search measurements" className="mt-3 h-10 w-full border border-line bg-white px-3 text-sm" />
-        <ul className="mt-4 divide-y divide-line border border-line bg-panel">
-          {visible.map((metric) => (
-            <li key={metric.metricId} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_auto]">
-              <div>
-                <p className="text-sm">{metric.definition?.label ?? metric.metricId}</p>
-                <p className="mt-1 font-mono text-xs text-muted">
-                  Value {formatMetricValue(metric.value, metric.unit)}
-                  {metric.value !== null ? ` · ${STANDING_LABEL[rangeStanding(metric.value, measurementScale(metric.referenceMin, metric.referenceMax, metric.definition?.referenceRange ?? null))]}` : ""}
-                  {" "}· Score {formatScore(metric.score)}
-                </p>
+
+        {/* Search Input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted/60" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search measurements"
+            className="h-10 w-full rounded-md border border-line bg-panel pl-9 pr-3 text-sm text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+
+        {/* Scrollable Metric List */}
+        <div className="rounded-xl border border-line bg-panel divide-y divide-line overflow-hidden shadow-xs">
+          {visible.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted">
+              No measurements found matching &ldquo;{query}&rdquo;.
+            </div>
+          ) : null}
+
+          {visible.map((metric) => {
+            const isSelected = current?.metricId === metric.metricId;
+            return (
+              <div
+                key={metric.metricId}
+                className={cn(
+                  "p-4 transition-colors",
+                  isSelected ? "bg-slate-50/90" : "hover:bg-slate-50/50",
+                )}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-ink">
+                        {metric.definition?.label ?? metric.metricId}
+                      </span>
+                      <Badge variant="outline" className="text-[10px] uppercase">
+                        {metric.view}
+                      </Badge>
+                    </div>
+
+                    <p className="font-mono text-xs text-muted">
+                      Value: <span className="text-ink font-medium">{formatMetricValue(metric.value, metric.unit)}</span>
+                      {metric.value !== null ? (
+                        <> · <span className="text-accent">{STANDING_LABEL[rangeStanding(metric.value, measurementScale(metric.referenceMin, metric.referenceMax, metric.definition?.referenceRange ?? null))]}</span></>
+                      ) : null}
+                      {" "}· Score <span className="font-bold text-ink">{formatScore(metric.score)}</span>
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelected(metric.metricId)}
+                    className={cn(
+                      "self-start rounded px-2.5 py-1 text-xs font-semibold transition-colors border",
+                      isSelected
+                        ? "border-accent bg-accent text-accent-ink"
+                        : "border-line bg-panel text-accent hover:bg-slate-100",
+                    )}
+                  >
+                    View
+                  </button>
+                </div>
+
                 <RangeTrack
                   min={metric.referenceMin}
                   max={metric.referenceMax}
@@ -232,68 +615,176 @@ function Measurements({
                   unit={metric.unit}
                 />
               </div>
-              <button type="button" className="text-sm text-accent" onClick={() => setSelected(metric.metricId)}>
-                View
-              </button>
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+        </div>
       </div>
-      <MetricPhoto analysis={analysis} metric={current} />
+
+      {/* Right Column: Sticky Selected Metric Detail & Overlay Visualizer */}
+      <div className="sticky top-20">
+        <MetricDetailCard analysis={analysis} metric={current} />
+      </div>
     </div>
   );
 }
 
-function Photos({
-  analysis,
-  metrics,
-}: {
-  analysis: AnalysisDetail;
-  metrics: Array<StoredMetric & { definition?: (typeof METRICS)[number] }>;
-}) {
-  const [metricId, setMetricId] = useState(metrics[0]?.metricId ?? "");
-  const metric = metrics.find((item) => item.metricId === metricId);
-  return (
-    <div className="mt-6 space-y-4">
-      <label className="block text-sm">
-        Measurement
-        <select className="mt-1 h-10 w-full max-w-sm border border-line bg-white px-2" value={metricId} onChange={(event) => setMetricId(event.target.value)}>
-          {metrics.map((item) => (
-            <option key={item.metricId} value={item.metricId}>{item.definition?.label ?? item.metricId}</option>
-          ))}
-        </select>
-      </label>
-      <MetricPhoto analysis={analysis} metric={metric} />
-    </div>
-  );
-}
-
-function MetricPhoto({
+function MetricDetailCard({
   analysis,
   metric,
 }: {
   analysis: AnalysisDetail;
   metric?: StoredMetric & { definition?: (typeof METRICS)[number] };
 }) {
-  if (!metric?.definition) return <p className="text-sm text-muted">Select a measurement.</p>;
+  if (!metric?.definition) {
+    return (
+      <Card className="border border-line bg-panel p-6 text-center text-sm text-muted">
+        Select a measurement to view its facial geometric vector.
+      </Card>
+    );
+  }
+
   const view = metric.view as FaceView;
   const photo = analysis.photos.find((item) => item.view === view);
   const landmarks: SemanticLandmark[] = analysis.landmarks
     .filter((landmark) => landmark.view === view)
     .map(({ view: _view, ...landmark }) => landmark);
-  if (!photo) return <p className="text-sm">The {view} photograph is missing.</p>;
+
   return (
-    <div>
-      <p className="mb-2 text-sm">{metric.definition.label}</p>
-      <p className="mb-3 text-xs leading-5 text-muted">{metric.definition.explanation}</p>
-      <FaceStage
-        src={`/api/analyses/${analysis.id}/photos/${view}`}
-        width={photo.width}
-        height={photo.height}
-        landmarks={landmarks.filter((landmark) => metric.definition?.requiredLandmarks.includes(landmark.key))}
-        overlay={metric.definition.overlay}
-      />
-    </div>
+    <Card className="border border-line bg-panel shadow-xs overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <Badge variant="accent" className="capitalize">{view} metric</Badge>
+          <span className="font-mono text-sm font-bold text-ink">
+            Score: {formatScore(metric.score)}
+          </span>
+        </div>
+        <CardTitle className="text-lg mt-1">{metric.definition.label}</CardTitle>
+        <CardDescription>{metric.definition.explanation}</CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {photo ? (
+          <div className="rounded-lg border border-line bg-slate-900 overflow-hidden shadow-inner">
+            <FaceStage
+              src={`/api/analyses/${analysis.id}/photos/${view}`}
+              width={photo.width}
+              height={photo.height}
+              landmarks={landmarks.filter((landmark) =>
+                metric.definition?.requiredLandmarks.includes(landmark.key),
+              )}
+              overlay={metric.definition.overlay}
+            />
+          </div>
+        ) : (
+          <p className="text-xs text-signal p-4 text-center">Photo unavailable.</p>
+        )}
+
+        <div className="rounded-md border border-line bg-panel-muted p-3 text-xs space-y-1.5">
+          <div className="flex justify-between font-mono">
+            <span className="text-muted">Measured:</span>
+            <span className="font-bold text-ink">{formatMetricValue(metric.value, metric.unit)}</span>
+          </div>
+          <div className="flex justify-between font-mono">
+            <span className="text-muted">Literature Ideal:</span>
+            <span className="text-ink">
+              {formatMetricValue(metric.definition.referenceRange.idealMin, metric.unit)} – {formatMetricValue(metric.definition.referenceRange.idealMax, metric.unit)}
+            </span>
+          </div>
+          {metric.definition.referenceRange.source ? (
+            <div className="pt-1.5 border-t border-line/60 text-[11px] text-muted leading-relaxed">
+              <span className="font-medium text-ink/80">Reference source:</span> {metric.definition.referenceRange.source}
+            </div>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
+function PhotosPanel({
+  analysis,
+  metrics,
+}: {
+  analysis: AnalysisDetail;
+  metrics: Array<StoredMetric & { definition?: (typeof METRICS)[number] }>;
+}) {
+  const [view, setView] = useState<FaceView>("front");
+  const [selectedMetricId, setSelectedMetricId] = useState<string>("none");
+
+  const photo = analysis.photos.find((p) => p.view === view);
+  const metric = metrics.find((m) => m.metricId === selectedMetricId);
+
+  const landmarks: SemanticLandmark[] = analysis.landmarks
+    .filter((landmark) => landmark.view === view)
+    .map(({ view: _view, ...landmark }) => landmark);
+
+  return (
+    <div className="space-y-6">
+      {/* Photo Controls Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-line bg-panel p-4 shadow-xs">
+        <div className="inline-flex rounded-md border border-line bg-panel-muted p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setView("front")}
+            className={cn(
+              "rounded-[4px] px-3.5 py-1.5 font-medium transition-colors",
+              view === "front" ? "bg-panel text-accent font-semibold shadow-xs" : "text-muted hover:text-ink",
+            )}
+          >
+            Front photograph
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("profile")}
+            className={cn(
+              "rounded-[4px] px-3.5 py-1.5 font-medium transition-colors",
+              view === "profile" ? "bg-panel text-accent font-semibold shadow-xs" : "text-muted hover:text-ink",
+            )}
+          >
+            Profile photograph
+          </button>
+        </div>
+
+        {/* Overlay Selector */}
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-muted shrink-0" />
+          <select
+            value={selectedMetricId}
+            onChange={(e) => setSelectedMetricId(e.target.value)}
+            className="h-9 rounded-md border border-line bg-panel px-3 text-xs text-ink focus:border-accent focus:outline-none"
+          >
+            <option value="none">Raw photograph (no overlay)</option>
+            {metrics
+              .filter((m) => m.view === view)
+              .map((m) => (
+                <option key={m.metricId} value={m.metricId}>
+                  Overlay: {m.definition?.label ?? m.metricId}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Main Photographic Stage */}
+      {photo ? (
+        <div className="rounded-xl border border-line bg-slate-900 p-2 sm:p-4 flex items-center justify-center overflow-hidden shadow-xs">
+          <FaceStage
+            src={`/api/analyses/${analysis.id}/photos/${view}`}
+            width={photo.width}
+            height={photo.height}
+            landmarks={
+              metric?.definition
+                ? landmarks.filter((l) => metric.definition?.requiredLandmarks.includes(l.key))
+                : []
+            }
+            overlay={metric?.definition?.overlay ?? null}
+          />
+        </div>
+      ) : (
+        <Card className="border border-line bg-panel p-12 text-center text-muted">
+          No {view} photograph available for this report.
+        </Card>
+      )}
+    </div>
+  );
+}
