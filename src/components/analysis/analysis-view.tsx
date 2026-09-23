@@ -54,11 +54,11 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-8">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
         <div>
           <p className="text-sm text-muted">{analysis.name}</p>
-          <h1 className="mt-1 text-3xl tracking-tight">Analysis</h1>
+          <h1 className="mt-1 text-2xl tracking-tight sm:text-3xl">Analysis</h1>
           <p className="mt-1 text-sm text-muted">{formatLongWhen(analysis.createdAt)}</p>
           {analysis.isSample ? (
             <p className="mt-2 max-w-xl text-sm text-warn">This report uses a drawn diagram, not a photograph of a person.</p>

@@ -23,11 +23,11 @@ export function DashboardHome({ analyses }: { analyses: AnalysisSummary[] }) {
   }));
 
   return (
-    <div id="history" className="mx-auto max-w-6xl px-5 py-8">
+    <div id="history" className="mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted">Overview</p>
-          <h1 className="mt-2 text-3xl tracking-tight">Saved analyses</h1>
+          <h1 className="mt-2 text-2xl tracking-tight sm:text-3xl">Saved analyses</h1>
         </div>
         <Link href="/analysis/new" className="inline-flex h-10 items-center bg-accent px-4 text-sm text-accent-ink">
           New analysis

@@ -14,10 +14,10 @@ export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boole
   const initialMessage = params.get("error") ?? "";
 
   return (
-    <main className="mx-auto grid min-h-screen max-w-5xl items-center gap-12 px-5 py-16 md:grid-cols-2">
+    <main className="mx-auto grid min-h-screen max-w-5xl items-center gap-8 px-4 py-10 sm:px-5 sm:py-16 md:grid-cols-2 md:gap-12">
       <div>
         <Mark className="h-8 w-8 text-accent" />
-        <h1 className="mt-6 text-4xl tracking-tight">Sign in to FaceLab</h1>
+        <h1 className="mt-6 text-3xl tracking-tight sm:text-4xl">Sign in to FaceLab</h1>
         <p className="mt-4 text-sm leading-6 text-muted">
           Analyses and photographs are private to the account. Landmark detection stays in the browser.
         </p>

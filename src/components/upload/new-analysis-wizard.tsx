@@ -289,7 +289,7 @@ function PhotoStep({
   }
 
   return (
-    <section className="mt-8 border border-line bg-panel p-5">
+    <section className="mt-8 border border-line bg-panel p-4 sm:p-5">
       <h2 className="text-xl">{photoLabel}</h2>
       <p className="mt-2 text-sm leading-6 text-muted">
         {mode === "camera"
@@ -300,11 +300,11 @@ function PhotoStep({
             ? "Use one true side view: look straight ahead, ear uncovered, far eyebrow hidden. A small head tilt is leveled automatically, and a left-facing photo is mirrored before measurement."
             : "Use one face, looking at the camera."}
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant={mode === "camera" ? "primary" : "secondary"} disabled={pending} onClick={() => setMode("camera")}>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button className="w-full sm:w-auto" variant={mode === "camera" ? "primary" : "secondary"} disabled={pending} onClick={() => setMode("camera")}>
           Use camera
         </Button>
-        <Button variant={mode === "upload" ? "primary" : "secondary"} disabled={pending} onClick={() => setMode("upload")}>
+        <Button className="w-full sm:w-auto" variant={mode === "upload" ? "primary" : "secondary"} disabled={pending} onClick={() => setMode("upload")}>
           Upload photo
         </Button>
       </div>

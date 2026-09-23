@@ -28,11 +28,35 @@ export function FaceStage({
   onCommit?: () => void;
 }) {
   const frame = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [natural, setNatural] = useState({ width, height });
+  const [renderedWidth, setRenderedWidth] = useState(0);
+  const [coarsePointer, setCoarsePointer] = useState(false);
   const drag = useRef<{ key?: SemanticLandmarkKey; pan?: { x: number; y: number; px: number; py: number } } | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: coarse)");
+    const apply = () => setCoarsePointer(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    const node = stage.current;
+    if (!node) return;
+    const measure = () => {
+      const next = node.clientWidth;
+      setRenderedWidth((current) => (Math.abs(current - next) < 1 ? current : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [natural.width, natural.height]);
 
   useEffect(() => {
     const node = frame.current;
@@ -73,21 +97,40 @@ export function FaceStage({
     onMove?.(drag.current.key, point);
   }
 
+  const fittedWidth = Math.max(1, natural.width);
+  const fittedHeight = Math.max(1, natural.height);
+  const cssRadius = coarsePointer ? (interactive ? 12 : 7) : interactive ? 6 : 4;
+  const pointRadius = renderedWidth > 0 ? (cssRadius * fittedWidth) / renderedWidth : interactive ? 8 : 5;
+
   return (
-    <div ref={frame} className="relative overflow-hidden border border-line bg-[#d5dee6]" style={{ touchAction: "none" }}>
+    <div
+      ref={frame}
+      className="relative overflow-hidden border border-line bg-[#d5dee6]"
+      style={{ touchAction: interactive ? "none" : "pan-y" }}
+    >
       <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}>
+        <div
+          ref={stage}
+          className="relative mx-auto"
+          style={{
+            aspectRatio: `${fittedWidth} / ${fittedHeight}`,
+            width: `min(100%, calc(min(78dvh, 960px) * ${fittedWidth} / ${fittedHeight}))`,
+            maxHeight: "min(78dvh, 960px)",
+          }}
+        >
         {/* Private analysis photos must not pass through the public image optimizer. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt=""
           draggable={false}
-          className="block h-auto w-full select-none"
+          className="absolute inset-0 h-full w-full object-contain select-none"
           onLoad={(event) => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
         />
         <svg
           ref={svgRef}
           viewBox={`0 0 ${natural.width} ${natural.height}`}
+          preserveAspectRatio="xMidYMid meet"
           className="absolute inset-0 h-full w-full"
           onPointerDown={(event) => {
             if (!interactive) return;
@@ -112,10 +155,10 @@ export function FaceStage({
                 data-landmark={landmark.key}
                 cx={landmark.x * natural.width}
                 cy={landmark.y * natural.height}
-                r={active ? 8 : 5}
+                r={active ? pointRadius * 1.35 : pointRadius}
                 fill={active ? "#1c4e6e" : "#f7f9fb"}
                 stroke="#1c4e6e"
-                strokeWidth={active ? 2 : 1.4}
+                strokeWidth={Math.max(1.4, pointRadius * 0.18)}
                 className={interactive ? "cursor-grab" : ""}
                 role={interactive ? "button" : undefined}
                 aria-label={LANDMARK_GUIDE[landmark.key]?.label ?? landmark.key}
@@ -150,6 +193,7 @@ export function FaceStage({
             );
           })}
         </svg>
+        </div>
       </div>
       {interactive ? (
         <div className="absolute bottom-3 right-3 flex gap-2">

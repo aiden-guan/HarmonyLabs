@@ -13,6 +13,19 @@ function degrees(radians: number): number | null {
 }
 
 /**
+ * Pose checks were tuned on 4:3 desk-camera frames. Normalized x and y are
+ * fractions of width and height, so a portrait phone frame changes pitch and
+ * roll unless it is scaled back onto that 4:3 frame. Yaw already compares two
+ * width-scaled quantities, so it stays put.
+ */
+export const TUNED_FRAME_ASPECT = 4 / 3;
+
+export function frameAspectScale(frame?: { width: number; height: number }): number {
+  if (!frame || frame.width <= 0 || frame.height <= 0) return 1;
+  return frame.width / frame.height / TUNED_FRAME_ASPECT;
+}
+
+/**
  * Approximate pose from mesh geometry.
  * Yaw uses the depth difference of the lateral face points relative to their
  * horizontal span. It is not a calibrated head-pose sensor.
@@ -20,7 +33,7 @@ function degrees(radians: number): number | null {
  * Roll is the slope of the eye line. The horizontal span is absolute so a
  * level face stays near 0° whether mesh-left sits on the image left or right.
  */
-export function estimatePose(raw: RawFaceLandmark[]): PoseEstimate {
+export function estimatePose(raw: RawFaceLandmark[], frame?: { width: number; height: number }): PoseEstimate {
   const left = raw[MP.leftLateral[0]];
   const right = raw[MP.rightLateral[0]];
   const forehead = raw[MP.foreheadApex];
@@ -30,14 +43,15 @@ export function estimatePose(raw: RawFaceLandmark[]): PoseEstimate {
   if (!left || !right || !forehead || !chin || !leftEye || !rightEye) {
     return { yaw: null, pitch: null, roll: null };
   }
+  const aspect = frameAspectScale(frame);
   const yaw = degrees(
     Math.atan2(right.z - left.z, Math.abs(left.x - right.x) + 1e-6),
   );
   const pitch = degrees(
-    Math.atan2(chin.z - forehead.z, Math.abs(chin.y - forehead.y) + 1e-6),
+    Math.atan2((chin.z - forehead.z) * aspect, Math.abs(chin.y - forehead.y) + 1e-6),
   );
   const roll = degrees(
-    Math.atan2(leftEye.y - rightEye.y, Math.abs(leftEye.x - rightEye.x) + 1e-6),
+    Math.atan2(leftEye.y - rightEye.y, Math.abs(leftEye.x - rightEye.x) * aspect + 1e-6),
   );
   return { yaw, pitch, roll };
 }
@@ -91,8 +105,13 @@ export interface ProfileShapeCue {
  * How close the photograph is to a true lateral, independent of the depth yaw.
  * Eye collapse is 1 when the two outer canthi overlap. Nose lead is how far
  * the tip sits ahead of the eyes, as a fraction of face height.
+ * When the frame is known, horizontal spans are scaled onto the 4:3 frame the
+ * thresholds were tuned on, so a tall phone photo does not look less turned.
  */
-export function profileShapeCue(raw: RawFaceLandmark[]): ProfileShapeCue {
+export function profileShapeCue(
+  raw: RawFaceLandmark[],
+  frame?: { width: number; height: number },
+): ProfileShapeCue {
   const left = raw[MP.leftEyeOuter];
   const right = raw[MP.rightEyeOuter];
   const forehead = raw[MP.foreheadApex];
@@ -101,8 +120,10 @@ export function profileShapeCue(raw: RawFaceLandmark[]): ProfileShapeCue {
   if (!left || !right || !forehead || !chin) return { eyeCollapse: null, noseLead: null };
   const faceH = Math.abs(chin.y - forehead.y);
   if (faceH < 0.05) return { eyeCollapse: null, noseLead: null };
-  const eyeCollapse = 1 - Math.abs(left.x - right.x) / faceH;
-  const noseLead = nose ? Math.abs(nose.x - (left.x + right.x) / 2) / faceH : null;
+  const aspect = frameAspectScale(frame);
+  const eyeDx = Math.abs(left.x - right.x) * aspect;
+  const eyeCollapse = 1 - eyeDx / faceH;
+  const noseLead = nose ? (Math.abs(nose.x - (left.x + right.x) / 2) * aspect) / faceH : null;
   return {
     eyeCollapse: Number.isFinite(eyeCollapse) ? eyeCollapse : null,
     noseLead: noseLead !== null && Number.isFinite(noseLead) ? noseLead : null,

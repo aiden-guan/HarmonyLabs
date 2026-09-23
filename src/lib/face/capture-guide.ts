@@ -1,3 +1,4 @@
+import { undistortLandmarks, type LensModel } from "@/lib/face/camera-optics";
 import { FACE_OVAL_LOOP } from "@/lib/face/face-oval";
 import { frankfortTilt } from "@/lib/face/frankfort";
 import {
@@ -158,6 +159,7 @@ export function assessCaptureAlignment(
 export function summarizeLiveFaces(
   faces: RawFaceLandmark[][],
   frame?: { width: number; height: number },
+  lens?: LensModel | null,
 ): LiveFaceSummary {
   const face = faces[0];
   if (!face) {
@@ -180,10 +182,11 @@ export function summarizeLiveFaces(
   const rightEye = face[33];
   const leftEye = face[263];
   const nose = face[1];
-  const cue = profileShapeCue(face);
+  const measured = lens && frame && frame.width > 1 && frame.height > 1 ? undistortLandmarks(face, frame, lens) : face;
+  const cue = profileShapeCue(measured, frame);
   return {
     faceCount: faces.length,
-    pose: estimatePose(face),
+    pose: estimatePose(measured, frame),
     coverage: faceCoverage(face),
     centerX: box ? (box.minX + box.maxX) / 2 : null,
     centerY: box ? (box.minY + box.maxY) / 2 : null,

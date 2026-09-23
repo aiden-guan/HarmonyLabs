@@ -8,7 +8,7 @@ export default async function NewAnalysisPage() {
   await requirePageSession("/analysis/new");
   return (
     <AppShell>
-      <div className="px-5 py-8">
+      <div className="px-4 py-5 sm:px-5 sm:py-8">
         <NewAnalysisWizard />
       </div>
     </AppShell>

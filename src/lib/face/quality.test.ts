@@ -5,6 +5,7 @@ import {
   evaluatePhotoQuality,
   mirrorRawLandmarks,
   profileFacesLeft,
+  profileShapeCue,
   profileTurn,
 } from "@/lib/face/quality";
 import { MP } from "@/lib/face/mediapipe-map";
@@ -163,5 +164,25 @@ describe("photo quality", () => {
     expect(profileFacesLeft(mirrored)).toBe(false);
     const pose = estimatePose(raw);
     expect(pose.yaw).not.toBeNull();
+  });
+
+  it("keeps a 4:3 frame on the tuned pose and corrects a tall phone frame", () => {
+    const raw: RawFaceLandmark[] = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    raw[MP.leftLateral[0]] = { x: 0.3, y: 0.45, z: -0.05 };
+    raw[MP.rightLateral[0]] = { x: 0.7, y: 0.45, z: 0.05 };
+    raw[MP.foreheadApex] = { x: 0.5, y: 0.2, z: -0.02 };
+    raw[MP.menton] = { x: 0.5, y: 0.8, z: 0.02 };
+    raw[MP.leftEyeOuter] = { x: 0.3, y: 0.42, z: 0 };
+    raw[MP.rightEyeOuter] = { x: 0.7, y: 0.4, z: 0 };
+    const tuned = estimatePose(raw);
+    const desk = estimatePose(raw, { width: 1280, height: 960 });
+    const phone = estimatePose(raw, { width: 1080, height: 1440 });
+    expect(desk.pitch).toBeCloseTo(tuned.pitch ?? 0, 5);
+    expect(desk.roll).toBeCloseTo(tuned.roll ?? 0, 5);
+    expect(Math.abs(phone.pitch ?? 0)).toBeLessThan(Math.abs(tuned.pitch ?? 0));
+    expect(Math.abs(phone.roll ?? 0)).toBeGreaterThan(Math.abs(tuned.roll ?? 0));
+    const flat = profileShapeCue(raw);
+    const tall = profileShapeCue(raw, { width: 1080, height: 1440 });
+    expect(tall.eyeCollapse ?? 0).toBeGreaterThan(flat.eyeCollapse ?? 0);
   });
 });

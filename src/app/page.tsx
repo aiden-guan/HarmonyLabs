@@ -11,7 +11,7 @@ const steps = [
 export default function HomePage() {
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-5">
         <Link href="/" className="flex items-center gap-2">
           <Mark className="h-6 w-6 text-accent" />
           <span className="text-lg tracking-tight">FaceLab</span>
@@ -21,10 +21,10 @@ export default function HomePage() {
         </Link>
       </header>
       <main>
-        <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-20 pt-8 md:grid-cols-[1.1fr_0.9fr] md:pt-16">
+        <section className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-16 pt-6 sm:gap-12 sm:px-5 sm:pb-20 sm:pt-8 md:grid-cols-[1.1fr_0.9fr] md:pt-16">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">Facial measurement</p>
-            <h1 className="mt-4 max-w-xl text-5xl leading-[1.05] tracking-tight md:text-6xl">
+            <h1 className="mt-4 max-w-xl text-4xl leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
               Measure facial geometry.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-muted">
@@ -52,8 +52,8 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-        <section id="method" className="mx-auto max-w-6xl px-5 py-20">
-          <h2 className="text-3xl tracking-tight">What actually runs</h2>
+        <section id="method" className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-20">
+          <h2 className="text-2xl tracking-tight sm:text-3xl">What actually runs</h2>
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             {[
               ["Computer vision detects landmarks", "MediaPipe Face Landmarker runs in the browser. Raw mesh indexes stay inside one mapping file."],
@@ -69,8 +69,8 @@ export default function HomePage() {
           </div>
         </section>
         <section id="privacy" className="border-t border-line">
-          <div className="mx-auto max-w-6xl px-5 py-16">
-            <h2 className="text-3xl tracking-tight">Photographs stay private</h2>
+          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-16">
+            <h2 className="text-2xl tracking-tight sm:text-3xl">Photographs stay private</h2>
             <div className="mt-6 max-w-2xl space-y-3 text-sm leading-6 text-muted">
               <p>Facial images are sensitive personal data. In FaceLab they are stored privately for the signed-in account.</p>
               <p>Uploaded images are not used to train models. Landmark detection for the measurement pipeline runs locally in the browser.</p>

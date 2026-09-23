@@ -32,9 +32,9 @@ export function CompareView({
   const largest = [...rows].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-8">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted">Compare</p>
-      <h1 className="mt-2 text-3xl tracking-tight">Two analyses</h1>
+      <h1 className="mt-2 text-2xl tracking-tight sm:text-3xl">Two analyses</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
         Score differences can come from camera perspective, lighting, landmark correction, or head pose. They are not evidence of a physical change.
       </p>

@@ -34,10 +34,14 @@ export function interpretDetection(input: {
     raw = mirrorRawLandmarks(raw);
     mirrored = true;
   }
-  const width = input.width && input.width > 0 ? input.width : 1;
-  const height = input.height && input.height > 0 ? input.height : 1;
-  const pose = raw.length > 0 ? estimatePose(raw) : { yaw: null, pitch: null, roll: null };
-  const cue = raw.length > 0 ? profileShapeCue(raw) : undefined;
+  const frame =
+    input.width && input.height && input.width > 0 && input.height > 0
+      ? { width: input.width, height: input.height }
+      : undefined;
+  const width = frame?.width ?? 1;
+  const height = frame?.height ?? 1;
+  const pose = raw.length > 0 ? estimatePose(raw, frame) : { yaw: null, pitch: null, roll: null };
+  const cue = raw.length > 0 ? profileShapeCue(raw, frame) : undefined;
   const level =
     input.view === "profile" && raw.length > 0 ? planFrankfortLevel(raw, width, height) : { radians: null, warnTilt: null };
   if (level.radians !== null) raw = rotateRawLandmarks(raw, level.radians, width, height);

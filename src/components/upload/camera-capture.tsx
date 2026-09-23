@@ -3,6 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  cameraProfileNote,
+  cameraVideoConstraints,
+  detectDeviceClass,
+  lensForDevice,
+  previewFrameStyle,
+  readDeviceSignals,
+  undistortRaster,
+  type LensModel,
+} from "@/lib/face/camera-optics";
+import {
   assessCaptureAlignment,
   captureGuideBox,
   summarizeLiveFaces,
@@ -50,6 +60,10 @@ export function CameraCapture({
   const pauseAuto = useRef(false);
   const shooting = useRef(false);
   const facing = useRef<"left" | "right">("right");
+  const lensRef = useRef<LensModel>(lensForDevice("desktop"));
+  const [session, setSession] = useState(0);
+  const [profileNote, setProfileNote] = useState("");
+  const [holding, setHolding] = useState("");
   const [phase, setPhase] = useState<CameraPhase>(() =>
     process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production" ? "unavailable" : "starting",
   );
@@ -65,6 +79,13 @@ export function CameraCapture({
   useEffect(() => {
     if (!pending) shooting.current = false;
   }, [pending]);
+
+  useEffect(() => {
+    const query = window.matchMedia("(orientation: portrait)");
+    const onChange = () => setSession((value) => value + 1);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production") return;
@@ -100,18 +121,31 @@ export function CameraCapture({
         });
     };
 
+    const portrait = window.matchMedia("(orientation: portrait)").matches;
+    const device = detectDeviceClass(readDeviceSignals());
+    const lens = lensForDevice(device);
+    lensRef.current = lens;
+    setProfileNote(cameraProfileNote(device));
+
     const onMeta = () => {
       if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setFrame({ width: video.videoWidth, height: video.videoHeight });
+        setFrame((current) =>
+          current.width === video.videoWidth && current.height === video.videoHeight
+            ? current
+            : { width: video.videoWidth, height: video.videoHeight },
+        );
       }
     };
     video.addEventListener("loadedmetadata", onMeta);
+    video.addEventListener("resize", onMeta);
 
-    void navigator.mediaDevices
-      .getUserMedia({
-        audio: false,
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
-      })
+    const videoConstraints = cameraVideoConstraints(device, portrait);
+    const supported = navigator.mediaDevices.getSupportedConstraints?.() as { resizeMode?: boolean } | undefined;
+    if (supported?.resizeMode) {
+      (videoConstraints as MediaTrackConstraints & { resizeMode?: { ideal: "none" } }).resizeMode = { ideal: "none" };
+    }
+
+    void openCamera(videoConstraints)
       .then(async (next) => {
         if (cancelled) {
           next.getTracks().forEach((track) => track.stop());
@@ -133,6 +167,7 @@ export function CameraCapture({
       cancelled = true;
       cancelAnimationFrame(raf);
       video.removeEventListener("loadedmetadata", onMeta);
+      video.removeEventListener("resize", onMeta);
       stream?.getTracks().forEach((track) => track.stop());
       video.srcObject = null;
       const finish = () => {
@@ -144,9 +179,10 @@ export function CameraCapture({
       };
       finish();
     };
-    // The session is restarted by remounting this component for each view.
+    // Countdown and capture state live in refs so a rotated camera can restart
+    // without rebuilding the detection loop around every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, session]);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -166,10 +202,14 @@ export function CameraCapture({
 
   function applyFaces(faces: RawFaceLandmark[][]) {
     const video = videoRef.current;
-    const summary = summarizeLiveFaces(faces, {
-      width: video?.videoWidth ?? 0,
-      height: video?.videoHeight ?? 0,
-    });
+    const summary = summarizeLiveFaces(
+      faces,
+      {
+        width: video?.videoWidth ?? 0,
+        height: video?.videoHeight ?? 0,
+      },
+      lensRef.current,
+    );
     if (view === "profile" && summary.faceCount === 1 && Math.abs(summary.pose.yaw ?? 0) > 20) {
       facing.current = summary.facesLeft ? "left" : "right";
     }
@@ -223,11 +263,15 @@ export function CameraCapture({
     countdownRef.current = null;
     setCountdown(null);
     setCaptureError("");
+    setHolding("Correcting lens distortion");
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
     try {
-      onCaptureRef.current(await captureFrame(video));
+      onCaptureRef.current(await captureFrame(video, lensRef.current));
     } catch (error) {
       shooting.current = false;
       setCaptureError(error instanceof Error ? error.message : "Could not capture the photo.");
+    } finally {
+      setHolding("");
     }
   }
 
@@ -239,14 +283,23 @@ export function CameraCapture({
   }
 
   const phaseMessage = phaseText(phase);
-  const message = captureError || phaseMessage || assessment.message;
+  const message = holding || captureError || phaseMessage || assessment.message;
   const mirror = view === "front";
+  const mirrorStyle = mirror ? { transform: "scaleX(-1)" } : undefined;
 
   return (
     <div className="mt-5">
-      <div className="relative overflow-hidden bg-[#14202b]" style={{ aspectRatio: `${frame.width} / ${frame.height}` }}>
-        <div className="absolute inset-0" style={mirror ? { transform: "scaleX(-1)" } : undefined}>
-          <video ref={videoRef} className={cn("h-full w-full object-fill", phase === "live" ? "opacity-100" : "opacity-0")} playsInline muted autoPlay />
+      <div className="relative mx-auto overflow-hidden bg-[#14202b]" style={previewFrameStyle(frame.width, frame.height)}>
+        <video
+          ref={videoRef}
+          className={cn("absolute inset-0 h-full w-full object-contain", phase === "live" ? "opacity-100" : "opacity-0")}
+          style={mirrorStyle}
+          playsInline
+          muted
+          autoPlay
+          disablePictureInPicture
+        />
+        <div className="pointer-events-none absolute inset-0" style={mirrorStyle}>
           <GuideGraphic
             width={frame.width}
             height={frame.height}
@@ -262,7 +315,8 @@ export function CameraCapture({
           </div>
         ) : null}
       </div>
-      <p role="status" className="mt-3 text-sm leading-6 text-ink">
+      {profileNote ? <p className="mt-3 text-xs leading-5 text-muted">{profileNote}</p> : null}
+      <p role="status" className="mt-2 text-sm leading-6 text-ink">
         {message}
       </p>
       <ul className="mt-3 flex flex-wrap gap-2">
@@ -278,8 +332,8 @@ export function CameraCapture({
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={() => void takePhoto()} disabled={pending || phase !== "live"}>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button className="w-full sm:w-auto" onClick={() => void takePhoto()} disabled={pending || phase !== "live" || holding !== ""}>
           {assessment.status === "ready" ? "Capture photo" : "Capture anyway"}
         </Button>
         {countdown !== null ? (
@@ -315,6 +369,7 @@ function GuideGraphic({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
       className="pointer-events-none absolute inset-0 h-full w-full [filter:drop-shadow(0_0_2px_rgba(16,24,32,0.9))]"
       aria-hidden="true"
     >
@@ -416,7 +471,18 @@ function cameraPhase(error: unknown): CameraPhase {
   return "unavailable";
 }
 
-async function captureFrame(video: HTMLVideoElement): Promise<File> {
+async function openCamera(video: MediaTrackConstraints): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: false, video });
+  } catch (error) {
+    if (error instanceof DOMException && (error.name === "OverconstrainedError" || error.name === "ConstraintNotSatisfiedError")) {
+      return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "user" } } });
+    }
+    throw error;
+  }
+}
+
+async function captureFrame(video: HTMLVideoElement, lens: LensModel): Promise<File> {
   const maxEdge = 1600;
   const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
   const width = Math.max(1, Math.round(video.videoWidth * scale));
@@ -424,11 +490,16 @@ async function captureFrame(video: HTMLVideoElement): Promise<File> {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("This browser could not capture the camera frame.");
   // Saved pixels stay unmirrored. The preview mirror is only for lining up,
   // and the landmark model reads an unmirrored photograph.
   context.drawImage(video, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height);
+  const corrected = undistortRaster({ width, height, data: pixels.data }, lens);
+  const output = new Uint8ClampedArray(width * height * 4);
+  output.set(corrected.data);
+  context.putImageData(new ImageData(output, width, height), 0, 0);
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (value) => (value ? resolve(value) : reject(new Error("Could not capture the photo."))),

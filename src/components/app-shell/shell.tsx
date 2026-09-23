@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <a href="#content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-white focus:px-3 focus:py-2">
         Skip to content
       </a>
-      <header className="flex items-center justify-between border-b border-line bg-panel px-4 py-3 md:hidden">
+      <header className="flex items-center justify-between border-b border-line bg-panel px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
         <Link href="/dashboard" className="flex items-center gap-2 font-medium">
           <Mark className="h-5 w-5 text-accent" />
           FaceLab
@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
-      <main id="content" className="min-w-0">
+      <main id="content" className="min-w-0 pb-[env(safe-area-inset-bottom)]">
         {children}
       </main>
     </div>

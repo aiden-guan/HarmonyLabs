@@ -48,8 +48,8 @@ export function SettingsForm({ email, displayName }: { email: string; displayNam
   }
 
   return (
-    <div className="mx-auto max-w-xl px-5 py-8">
-      <h1 className="text-3xl tracking-tight">Settings</h1>
+    <div className="mx-auto max-w-xl px-4 py-5 sm:px-5 sm:py-8">
+      <h1 className="text-2xl tracking-tight sm:text-3xl">Settings</h1>
       <p className="mt-2 text-sm text-muted">{email}</p>
       <form onSubmit={save} className="mt-6 space-y-4 border border-line bg-panel p-5">
         <Field label="Display name">
