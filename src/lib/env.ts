@@ -1,13 +1,10 @@
-export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
+export function isConvexConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 }
 
 export function isDevAuthEnabled(): boolean {
   if (process.env.NODE_ENV === "production") return false;
-  if (isSupabaseConfigured()) return false;
+  if (isConvexConfigured()) return false;
   return process.env.FACELAB_DEV_AUTH !== "0";
 }
 

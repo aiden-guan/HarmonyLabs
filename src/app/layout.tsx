@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Familjen_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
+import { ConvexClientProvider } from "@/components/auth/convex-client-provider";
+import { isConvexConfigured } from "@/lib/env";
 import "./globals.css";
 
 const sans = Familjen_Grotesk({
@@ -23,9 +26,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
+  const app = (
     <html lang="en" className={`${sans.variable} ${mono.variable} h-full`} data-scroll-behavior="smooth">
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <ConvexClientProvider>{children}</ConvexClientProvider>
+      </body>
     </html>
   );
+  if (!isConvexConfigured()) return app;
+  return <ConvexAuthNextjsServerProvider>{app}</ConvexAuthNextjsServerProvider>;
 }

@@ -1,8 +1,8 @@
-import { isAiConfigured, isDevAuthEnabled, isSupabaseConfigured } from "@/lib/env";
+import { isAiConfigured, isConvexConfigured, isDevAuthEnabled } from "@/lib/env";
 
 export function GET() {
   return Response.json({
-    supabase: isSupabaseConfigured(),
+    convex: isConvexConfigured(),
     devAuth: isDevAuthEnabled(),
     ai: isAiConfigured(),
   });

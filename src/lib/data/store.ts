@@ -1,13 +1,13 @@
 import "server-only";
 
-import { isSupabaseConfigured } from "@/lib/env";
+import { isConvexConfigured } from "@/lib/env";
+import { convexStore } from "@/lib/data/convex-store";
 import { localStore } from "@/lib/data/local-store";
-import { supabaseStore } from "@/lib/data/supabase-store";
 
-export function getStore() {
-  if (isSupabaseConfigured()) return supabaseStore;
+export function getStore(): AppStore {
+  if (isConvexConfigured()) return convexStore as AppStore;
   if (process.env.NODE_ENV === "production") {
-    throw new Error("Supabase environment variables are required in production.");
+    throw new Error("Convex environment variables are required in production.");
   }
   return localStore;
 }

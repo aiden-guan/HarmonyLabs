@@ -27,7 +27,7 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000. Without Supabase environment variables, development sign-in is available on the login page and analyses are stored under `.data/`. That path is ignored by git and is not available in production.
+Open http://localhost:3000. Without `NEXT_PUBLIC_CONVEX_URL`, development sign-in is available on the login page and analyses are stored under `.data/`. That path is ignored by git and is not available in production. With Convex configured, run `pnpm exec convex dev` beside the Next.js server.
 
 ## Environment variables
 
@@ -35,9 +35,7 @@ Copy `.env.example` to `.env.local`.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Production | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production | Public anon key used by the browser and the user-scoped server client |
-| `SUPABASE_SERVICE_ROLE_KEY` | Only to delete the auth user | Server-only. Removes the Supabase login when account data is deleted |
+| `NEXT_PUBLIC_CONVEX_URL` | Production | Convex deployment URL. Accounts, analyses, and photographs are stored there. |
 | `AI_API_KEY` | Optional | Key for an OpenAI-compatible chat API |
 | `AI_BASE_URL` | Optional | API origin, for example `https://api.openai.com/v1` |
 | `AI_MODEL` | Optional | Model name sent with explanation requests |
@@ -48,17 +46,11 @@ Copy `.env.example` to `.env.local`.
 
 `NEXT_PUBLIC_E2E=1` replaces the face detector with a fixture mesh. It is ignored in production.
 
-## Supabase
+## Convex
 
-Apply the migration in `supabase/migrations/20260922120000_init.sql`. It creates the tables, enables row-level security, and creates a private `analysis-photos` bucket. Storage paths are `{userId}/{analysisId}/{view}`.
+Production sign-in is email and password through Convex Auth. Photographs are stored in Convex file storage and are readable only by the account that uploaded them. Deleting an analysis or an account removes those files.
 
-In the Supabase dashboard:
-
-1. Enable Google and email sign-in.
-2. Add `http://localhost:3000/auth/callback` and the production callback URL to the redirect allow list.
-3. Confirm the `analysis-photos` bucket is private.
-
-The application deletes storage objects when an analysis or account is deleted. SQL cascades do not remove Storage files by themselves.
+`pnpm exec convex dev` creates the local deployment, generates `convex/_generated`, and keeps functions in sync. `pnpm exec convex deploy` publishes the production deployment. Set `NEXT_PUBLIC_CONVEX_URL` to that deployment's URL before building the Next.js app. The JWT signing keys live on the Convex deployment, not in the Next.js environment.
 
 ## Computer vision
 

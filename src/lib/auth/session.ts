@@ -2,9 +2,11 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "../../../convex/_generated/api";
 import { DEV_SESSION_COOKIE } from "@/lib/auth/constants";
-import { isDevAuthEnabled, isSupabaseConfigured } from "@/lib/env";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isConvexConfigured, isDevAuthEnabled } from "@/lib/env";
 
 const COOKIE = DEV_SESSION_COOKIE;
 
@@ -56,11 +58,12 @@ export function createDevSessionToken(user: SessionUser): string {
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  if (isSupabaseConfigured()) {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) return null;
-    return { id: data.user.id, email: data.user.email ?? "" };
+  if (isConvexConfigured()) {
+    const token = await convexAuthNextjsToken();
+    if (!token) return null;
+    const viewer = await fetchQuery(api.account.viewer, {}, { token });
+    if (!viewer) return null;
+    return { id: viewer.id, email: viewer.email };
   }
   if (!isDevAuthEnabled()) return null;
   const jar = await cookies();
