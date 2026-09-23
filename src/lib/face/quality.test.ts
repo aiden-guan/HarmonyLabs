@@ -6,8 +6,8 @@ import {
   mirrorRawLandmarks,
   profileFacesLeft,
   profileShapeCue,
-  profileTurn,
 } from "@/lib/face/quality";
+import { classifyProfilePose } from "@/lib/face/profile-pose";
 import { MP } from "@/lib/face/mediapipe-map";
 import type { RawFaceLandmark } from "@/types/face";
 
@@ -100,18 +100,17 @@ describe("photo quality", () => {
       mirrored: false,
       profileCue: { eyeCollapse: 0.48, noseLead: 0.06 },
     });
-    expect(threeQuarter.hardError).toBeNull();
-    expect(threeQuarter.quality.warnings.some((warning) => warning.includes("far eyebrow"))).toBe(true);
+    expect(threeQuarter.hardError).toMatch(/side view/);
 
     const tilted = evaluatePhotoQuality({
       view: "profile",
       faceCount: 1,
-      pose: { yaw: 50, pitch: 20, roll: 40 },
+      pose: { yaw: 58, pitch: 20, roll: 40 },
       blurScore: 0.8,
       brightnessScore: 0.5,
       faceCoverage: 0.3,
       mirrored: false,
-      profileCue: { eyeCollapse: 0.86, noseLead: 0.2 },
+      profileCue: { eyeCollapse: 0.9, noseLead: 0.22 },
       frankfortTilt: 22,
     });
     expect(tilted.hardError).toBeNull();
@@ -128,7 +127,21 @@ describe("photo quality", () => {
       profileCue: { eyeCollapse: 0.86, noseLead: 0.22 },
     });
     expect(stacked.hardError).toBeNull();
-    expect(profileTurn(61, { eyeCollapse: null, noseLead: null })).toBe("ready");
+    expect(classifyProfilePose(61, { eyeCollapse: null, noseLead: null })).toBe("nearlyLateral");
+
+    const near = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 52, pitch: 0, roll: 0 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.12,
+      mirrored: false,
+      facialHeight: 0.5,
+      profileCue: { eyeCollapse: 0.68, noseLead: 0.12 },
+    });
+    expect(near.hardError).toBeNull();
+    expect(near.quality.warnings.some((warning) => warning.includes("not fully sideways"))).toBe(true);
   });
 
   it("warns on mild tilt without blocking", () => {

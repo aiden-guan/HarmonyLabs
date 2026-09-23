@@ -56,3 +56,22 @@ test("reads profile points from the anterior outline and ignores off-outline ver
   expect(mapped?.menton?.y).toBeGreaterThan(mapped?.pogonion?.y ?? 0);
   expect(mapped?.pogonion?.source).toBe("derived");
 });
+
+test("still reads the anterior outline when the eyes are stacked in a true lateral pose", () => {
+  const raw: RawFaceLandmark[] = Array.from({ length: 478 }, (_, index) => ({
+    x: 0.95,
+    y: 0.2 + (index % 11) * 0.05,
+    z: 0.45,
+  }));
+  const indices = [...new Set([...FACE_OVAL_LOOP, ...MIDLINE])];
+  indices.forEach((index, order) => {
+    const y = 0.14 + (0.79 * order) / (indices.length - 1);
+    raw[index] = { x: contourX(y), y, z: -0.1 };
+  });
+  raw[33] = { x: 0.58, y: 0.4, z: 0 };
+  raw[263] = { x: 0.585, y: 0.41, z: 0 };
+  const mapped = profileContourLandmarks(raw);
+  expect(mapped?.pronasale?.x).toBeGreaterThan(0.68);
+  expect(mapped?.nasion?.y).toBeLessThan(mapped?.pronasale?.y ?? 0);
+  expect(mapped?.menton?.y).toBeGreaterThan(mapped?.pogonion?.y ?? 0);
+});

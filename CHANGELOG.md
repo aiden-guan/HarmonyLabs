@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-09-23 — Capture pipeline
+
+### Summary
+The front camera capture now advances to the profile step after a local check, instead of waiting on a new face model, a full-frame lens loop, and two network saves. Profile capture guides the real face into a true side view.
+
+### Added
+- Persistent still-image FaceLandmarker worker, reused across photographs, with request ids, timeout, and shutdown.
+- Live camera mesh reuse when the last detection is fresh, with a still-image fallback when it is not.
+- A camera session that keeps the media stream and live detector from the front step through the profile step.
+- Off-thread lens correction so the saved photograph and the stored landmarks stay in the same coordinate frame.
+- One `POST /api/analyses/[analysisId]/captures` request for the photo, its quality, and its landmarks.
+- A stricter profile pose classifier (`frontal`, `threeQuarter`, `nearlyLateral`, `lateral`) with temporal hysteresis before auto-capture.
+- Profile guidance built from brackets, a level line, the live contour, and one instruction. The static profile silhouette is gone.
+
+### Changed
+- Camera statistics come from a small sample. The camera path no longer decodes and re-encodes the JPEG just to measure blur.
+- Profile distance uses facial height. Profile centering uses a point behind the nose so the nose is not forced into the middle of the frame.
+- Both front and profile previews are mirrored. Saved pixels stay in camera orientation.
+- Background saves can be retried. Photo check waits until the front and profile saves have finished.
+
+### Tests
+- Profile pose cases cover frontal, mild turn, three-quarter, near profile, true left and right profiles, tilt, and noisy versus stable frames.
+- Capture routing tests cover a fresh live mesh, a stale mesh, one reused still-image worker, and a camera session that survives the front-to-profile step.
+
 ## 2026-09-23
 
 ### Summary

@@ -17,7 +17,10 @@ function aligned(view: FaceView, patch?: Partial<Parameters<typeof assessCapture
     centerX: 0.5,
     centerY: 0.47,
     facesLeft: false,
-    mirroredPreview: view === "front",
+    mirroredPreview: true,
+    eyeCollapse: view === "profile" ? 0.9 : null,
+    noseLead: view === "profile" ? 0.22 : null,
+    facialHeight: view === "profile" ? 0.5 : null,
     ...patch,
   });
 }
@@ -37,21 +40,40 @@ describe("capture guide", () => {
     expect(aligned("front").status).toBe("ready");
     expect(aligned("front").message).toMatch(/Hold still/);
     expect(aligned("profile").status).toBe("ready");
+    expect(aligned("profile").message).toMatch(/Good profile/);
     expect(aligned("profile", { facesLeft: true }).profileFacing).toBe("left");
-    const almost = aligned("profile", {
-      pose: { yaw: 20, pitch: 0, roll: 40 },
+    const threeQuarter = aligned("profile", {
+      pose: { yaw: 22, pitch: 0, roll: 0 },
       eyeCollapse: 0.48,
       noseLead: 0.06,
     });
-    expect(almost.status).toBe("ready");
-    expect(almost.message).toMatch(/far eyebrow/);
-    const frontalProfile = aligned("profile", { pose: { yaw: 8, pitch: 0, roll: 40 } });
+    expect(threeQuarter.status).toBe("adjust");
+    expect(threeQuarter.message).toMatch(/farther/);
+    expect(threeQuarter.checks.find((check) => check.id === "pose")?.ok).toBe(false);
+    const mild = aligned("profile", { pose: { yaw: 18, pitch: 0, roll: 0 }, eyeCollapse: 0.45, noseLead: 0.04 });
+    expect(mild.status).not.toBe("ready");
+    const near = aligned("profile", {
+      pose: { yaw: 52, pitch: 0, roll: 0 },
+      eyeCollapse: 0.68,
+      noseLead: 0.12,
+    });
+    expect(near.status).toBe("adjust");
+    expect(near.profilePose).toBe("nearlyLateral");
+    expect(near.message).toMatch(/slightly/);
+    const frontalProfile = aligned("profile", {
+      pose: { yaw: 4, pitch: 0, roll: 0 },
+      eyeCollapse: 0.3,
+      noseLead: 0.02,
+    });
     expect(frontalProfile.status).toBe("adjust");
-    expect(frontalProfile.message).toMatch(/far eyebrow/);
+    expect(frontalProfile.message).toMatch(/either side/);
     const lookingDown = aligned("profile", { frankfortTilt: 22 });
     expect(lookingDown.status).toBe("adjust");
-    expect(lookingDown.message).toMatch(/straight ahead/);
-    expect(frontalProfile.checks.find((check) => check.id === "pose")?.ok).toBe(false);
+    expect(lookingDown.message).toMatch(/gaze level/);
+    const narrowButTall = aligned("profile", { coverage: 0.05, facialHeight: 0.5 });
+    expect(narrowButTall.status).toBe("ready");
+    expect(aligned("profile", { facialHeight: 0.2 }).message).toMatch(/Move closer/);
+    expect(aligned("profile", { facialHeight: 0.9 }).message).toMatch(/Move back/);
   });
 
   it("coaches distance and position in the direction the person sees", () => {

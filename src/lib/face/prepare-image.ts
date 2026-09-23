@@ -10,6 +10,18 @@ export interface PreparedImage {
   brightnessScore: number;
 }
 
+/** Blur and brightness from a small sample. Does not re-encode the photograph. */
+export function scoreImageData(data: Uint8ClampedArray, width: number, height: number): {
+  blurScore: number;
+  brightnessScore: number;
+} {
+  const stats = { width, height, data };
+  return {
+    blurScore: sharpnessScore(laplacianVariance(stats)),
+    brightnessScore: brightnessScore(stats),
+  };
+}
+
 export async function prepareImage(file: File): Promise<PreparedImage> {
   if (file.size > maxUploadBytes()) {
     const mb = Math.round(maxUploadBytes() / (1024 * 1024));
@@ -37,7 +49,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   if (!sampleContext) throw new Error("This browser could not read the image.");
   sampleContext.drawImage(canvas, 0, 0, sample.width, sample.height);
   const pixels = sampleContext.getImageData(0, 0, sample.width, sample.height);
-  const stats = { width: sample.width, height: sample.height, data: pixels.data };
+  const scores = scoreImageData(pixels.data, sample.width, sample.height);
   const type = file.type === "image/png" ? "image/png" : "image/jpeg";
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("Could not prepare the photo."))), type, 0.92);
@@ -47,8 +59,8 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     width,
     height,
     previewUrl: URL.createObjectURL(blob),
-    blurScore: sharpnessScore(laplacianVariance(stats)),
-    brightnessScore: brightnessScore(stats),
+    blurScore: scores.blurScore,
+    brightnessScore: scores.brightnessScore,
   };
 }
 

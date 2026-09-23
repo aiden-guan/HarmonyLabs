@@ -349,6 +349,9 @@ export const localStore = {
       if (views.has("front") && views.has("profile") && analysis.status === "draft") {
         analysis.status = "photos_uploaded";
       }
+      if (input.view === "profile" && input.quality) {
+        analysis.profileMirrored = input.quality.mirrored;
+      }
       analysis.updatedAt = new Date().toISOString();
       return {
         id: photo.id,

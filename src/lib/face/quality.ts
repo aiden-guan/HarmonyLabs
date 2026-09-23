@@ -1,5 +1,6 @@
 import type { FaceView, PhotoQuality, RawFaceLandmark } from "@/types/face";
 import { MP } from "@/lib/face/mediapipe-map";
+import { classifyProfilePose } from "@/lib/face/profile-pose";
 
 export interface PoseEstimate {
   yaw: number | null;
@@ -54,6 +55,16 @@ export function estimatePose(raw: RawFaceLandmark[], frame?: { width: number; he
     Math.atan2(leftEye.y - rightEye.y, Math.abs(leftEye.x - rightEye.x) * aspect + 1e-6),
   );
   return { yaw, pitch, roll };
+}
+
+/** Forehead-to-chin span. Profile distance uses this because a side face is narrow. */
+export function faceHeightFraction(raw: RawFaceLandmark[]): number | null {
+  const forehead = raw[MP.foreheadApex];
+  const chin = raw[MP.menton];
+  if (!forehead || !chin || !Number.isFinite(forehead.y) || !Number.isFinite(chin.y)) return null;
+  const span = Math.abs(chin.y - forehead.y);
+  if (!Number.isFinite(span) || span < 0.02) return null;
+  return span;
 }
 
 export function faceCoverage(raw: RawFaceLandmark[]): number {
@@ -130,33 +141,6 @@ export function profileShapeCue(
   };
 }
 
-/**
- * A side photo is ready once the nose is in front and the eyes have started
- * to stack, or the depth yaw is already a side view. Only a near-frontal
- * photo is refused. A slightly open far eyebrow stays usable, and a small
- * head tilt is leveled afterwards from the ear to the lower eyelid.
- */
-export function profileTurn(
-  yaw: number | null,
-  cue: ProfileShapeCue,
-  relaxed = false,
-): "ready" | "close" | "no" {
-  if (yaw === null && cue.eyeCollapse === null) return "ready";
-  const absYaw = yaw === null ? null : Math.abs(yaw);
-  const collapse = cue.eyeCollapse;
-  const lead = cue.noseLead;
-  const stacked =
-    collapse !== null &&
-    collapse >= (relaxed ? 0.48 : 0.55) &&
-    (lead === null || lead >= (relaxed ? 0.04 : 0.05));
-  const yawReady = absYaw !== null && absYaw >= (relaxed ? 24 : 28);
-  if (stacked || yawReady) return "ready";
-  const eyesApart = collapse === null || collapse < (relaxed ? 0.38 : 0.42);
-  const yawFlat = absYaw === null || absYaw < (relaxed ? 14 : 18);
-  if (eyesApart && yawFlat) return "no";
-  return "close";
-}
-
 export function mirrorRawLandmarks(raw: RawFaceLandmark[]): RawFaceLandmark[] {
   return raw.map((point) => ({
     ...point,
@@ -177,6 +161,8 @@ export function evaluatePhotoQuality(input: {
   faceCoverage: number;
   mirrored: boolean;
   profileCue?: ProfileShapeCue;
+  /** Normalized forehead-to-chin span. Profile distance warnings use this when present. */
+  facialHeight?: number | null;
   /** Degrees the ear-to-eyelid line sits off horizontal, when it was not leveled. */
   frankfortTilt?: number | null;
 }): { quality: PhotoQuality; hardError: string | null } {
@@ -221,7 +207,13 @@ export function evaluatePhotoQuality(input: {
     );
   }
 
-  if (input.faceCoverage > 0 && input.faceCoverage < 0.12) {
+  if (input.view === "profile" && input.facialHeight != null) {
+    if (input.facialHeight < 0.28) {
+      warnings.push("The face is far from the camera. A closer photo is easier to verify.");
+    } else if (input.facialHeight > 0.78) {
+      warnings.push("The face is extremely close to the camera. Perspective can distort proportions.");
+    }
+  } else if (input.faceCoverage > 0 && input.faceCoverage < 0.12) {
     warnings.push("The face fills very little of the frame. A closer photo is easier to verify.");
   } else if (input.faceCoverage > 0.72) {
     warnings.push("The face is extremely close to the camera. Perspective can distort proportions.");
@@ -240,19 +232,19 @@ export function evaluatePhotoQuality(input: {
   }
 
   if (input.view === "profile") {
-    const turn = profileTurn(yaw, input.profileCue ?? { eyeCollapse: null, noseLead: null });
-    if (turn === "no") {
+    const pose = classifyProfilePose(yaw, input.profileCue ?? { eyeCollapse: null, noseLead: null });
+    if (pose === "nearlyLateral") {
+      warnings.push(
+        "The face is not fully sideways yet. A true side view keeps these angles steady. You can check the points on the next screen.",
+      );
+    } else if (pose !== "lateral") {
       hardError =
         hardError ??
-        "This is not a side view yet. Turn until the far eyebrow is hidden and look straight ahead.";
-    } else if (turn === "close") {
-      warnings.push(
-        "The far eyebrow may still be visible. A fuller side view keeps these angles steady. You can check the points on the next screen.",
-      );
+        "This is not a side view yet. Turn your head 90° until the far eyebrow is hidden and look straight ahead.";
     }
     if (input.frankfortTilt != null && Math.abs(input.frankfortTilt) > 15) {
       warnings.push(
-        `The head is tilted about ${roundDegrees(input.frankfortTilt)} from level. Look straight ahead. A small tilt is corrected automatically; a larger one still changes the profile.`,
+        "The head is tilted up or down. Look straight ahead and keep your chin neutral. A small tilt is corrected automatically.",
       );
     }
   }

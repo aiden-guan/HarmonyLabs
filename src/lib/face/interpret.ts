@@ -4,6 +4,7 @@ import {
   estimatePose,
   evaluatePhotoQuality,
   faceCoverage,
+  faceHeightFraction,
   mirrorRawLandmarks,
   profileFacesLeft,
   profileShapeCue,
@@ -54,12 +55,13 @@ export function interpretDetection(input: {
     faceCoverage: raw.length > 0 ? faceCoverage(raw) : 0,
     mirrored,
     profileCue: cue,
+    facialHeight: raw.length > 0 ? faceHeightFraction(raw) : null,
     frankfortTilt: level.warnTilt,
   });
   if (level.radians !== null) {
     evaluated.quality.notes = [
       ...(evaluated.quality.notes ?? []),
-      "The profile was leveled so the ear canal and the lower eyelid sit on a horizontal line.",
+      "The profile was leveled slightly so the head sits closer to horizontal.",
     ];
   }
   const landmarks = evaluated.hardError || raw.length === 0 ? [] : Object.values(mapLandmarks(raw, input.view)).filter((item): item is SemanticLandmark => Boolean(item));

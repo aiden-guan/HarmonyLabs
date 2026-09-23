@@ -1,4 +1,10 @@
 import type { FaceView, RawFaceLandmark } from "@/types/face";
+import {
+  createStillDetectorClient,
+  type DetectorWorker,
+  type StillDetectorClient,
+} from "@/lib/mediapipe/face-landmarker-worker-client";
+import { createSessionLease } from "@/lib/mediapipe/session-lease";
 
 export interface RawDetection {
   faces: RawFaceLandmark[][];
@@ -83,7 +89,6 @@ type LiveLandmarker = {
 };
 
 let livePromise: Promise<LiveLandmarker> | null = null;
-let liveSession = 0;
 let liveTimestamp = 0;
 let restoreLiteFilter: (() => void) | null = null;
 
@@ -147,18 +152,32 @@ function loadLiveLandmarker(): Promise<LiveLandmarker> {
   return created;
 }
 
-/** Keeps one video landmarker alive while a camera session is mounted. */
-export function retainLiveFaceLandmarker(): () => void {
-  liveSession += 1;
-  const token = liveSession;
-  installLiteFilter();
-  return () => {
-    if (token !== liveSession) return;
-    const pending = livePromise;
+const liveLease = createSessionLease<LiveLandmarker>({
+  graceMs: 500,
+  open: async () => {
+    installLiteFilter();
+    return loadLiveLandmarker();
+  },
+  close: (landmarker) => {
+    restoreLiteFilter?.();
+    landmarker.close();
     livePromise = null;
     liveTimestamp = 0;
-    restoreLiteFilter?.();
-    void pending?.then((landmarker) => landmarker.close()).catch(() => undefined);
+  },
+});
+
+/**
+ * Keeps one video landmarker alive for the capture session.
+ * Releasing it starts a short grace period so a front→profile render, or
+ * React strict mode, does not tear the model down and load it again.
+ */
+export function retainLiveFaceLandmarker(): () => void {
+  let released = false;
+  void liveLease.acquire("live").catch(() => undefined);
+  return () => {
+    if (released) return;
+    released = true;
+    liveLease.release();
   };
 }
 
@@ -176,46 +195,83 @@ export async function detectLiveFace(video: HTMLVideoElement, now: number): Prom
   );
 }
 
-export async function detectRawFace(file: Blob, view: FaceView): Promise<RawDetection> {
-  if (process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production") {
-    const fixture = await import("@/fixtures/raw-sample");
-    return { faces: [fixture.rawSample(view)] };
+let stillClient: StillDetectorClient | null = null;
+
+function stillDetector(): StillDetectorClient {
+  if (!stillClient) {
+    stillClient = createStillDetectorClient({
+      createWorker: () => new Worker(new URL("./worker.ts", import.meta.url)) as unknown as DetectorWorker,
+    });
   }
-  const bitmap = await createImageBitmap(file);
+  return stillClient;
+}
+
+/** Starts the still-image worker before an upload, without touching the live camera model. */
+export function prewarmStillDetector(): void {
+  if (typeof Worker === "undefined") return;
+  if (process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production") return;
+  stillDetector().prewarm();
+}
+
+export function disposeStillDetector(): void {
+  stillClient?.terminate();
+  stillClient = null;
+}
+
+async function fixtureDetection(view: FaceView): Promise<RawDetection> {
+  const fixture = await import("@/fixtures/raw-sample");
+  return { faces: [fixture.rawSample(view)] };
+}
+
+function e2eDetector(): boolean {
+  return process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production";
+}
+
+/** Still-image detection for a canvas. Reuses one worker across photographs. */
+export async function detectCanvas(canvas: HTMLCanvasElement, view: FaceView): Promise<RawDetection> {
+  if (e2eDetector()) return fixtureDetection(view);
+  const bitmap = await createImageBitmap(canvas);
   try {
-    return await detectInWorker(bitmap);
-  } catch {
-    return detectWithMediaPipe(bitmap);
+    if (typeof Worker === "undefined") return await detectWithMediaPipe(bitmap);
+    return await stillDetector().detect(bitmap);
+  } catch (error) {
+    const retry = await createImageBitmap(canvas);
+    try {
+      return await detectWithMediaPipe(retry);
+    } catch {
+      throw error instanceof Error ? error : new Error("Face detection failed.");
+    } finally {
+      retry.close();
+    }
   } finally {
-    bitmap.close();
+    try {
+      bitmap.close();
+    } catch {
+      // The worker already took ownership of the bitmap.
+    }
   }
 }
 
-async function detectInWorker(bitmap: ImageBitmap): Promise<RawDetection> {
-  if (typeof Worker === "undefined") {
-    throw new Error("Workers are unavailable");
+export async function detectRawFace(file: Blob, view: FaceView): Promise<RawDetection> {
+  if (e2eDetector()) return fixtureDetection(view);
+  const bitmap = await createImageBitmap(file);
+  try {
+    if (typeof Worker === "undefined") return await detectWithMediaPipe(bitmap);
+    return await stillDetector().detect(bitmap);
+  } catch (error) {
+    const retry = await createImageBitmap(file);
+    try {
+      return await detectWithMediaPipe(retry);
+    } catch {
+      throw error;
+    } finally {
+      retry.close();
+    }
+  } finally {
+    try {
+      bitmap.close();
+    } catch {
+      // The worker already took ownership of the bitmap.
+    }
   }
-  const worker = new Worker(new URL("./worker.ts", import.meta.url));
-  const clone = await createImageBitmap(bitmap);
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      worker.terminate();
-      reject(new Error("Face detection timed out"));
-    }, 45000);
-    worker.onmessage = (event: MessageEvent<{ ok: boolean; faces?: RawFaceLandmark[][]; error?: string }>) => {
-      clearTimeout(timeout);
-      worker.terminate();
-      if (!event.data.ok || !event.data.faces) {
-        reject(new Error(event.data.error ?? "Face detection failed"));
-        return;
-      }
-      resolve({ faces: event.data.faces });
-    };
-    worker.onerror = () => {
-      clearTimeout(timeout);
-      worker.terminate();
-      reject(new Error("The face landmarker worker failed to start"));
-    };
-    worker.postMessage({ bitmap: clone }, [clone]);
-  });
 }

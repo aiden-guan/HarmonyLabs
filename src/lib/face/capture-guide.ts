@@ -1,12 +1,18 @@
 import { undistortLandmarks, type LensModel } from "@/lib/face/camera-optics";
 import { FACE_OVAL_LOOP } from "@/lib/face/face-oval";
 import { frankfortTilt } from "@/lib/face/frankfort";
+import { MP } from "@/lib/face/mediapipe-map";
+import {
+  classifyProfilePose,
+  profilePoseMessage,
+  type ProfilePoseState,
+} from "@/lib/face/profile-pose";
 import {
   estimatePose,
   faceCoverage,
+  faceHeightFraction,
   profileFacesLeft,
   profileShapeCue,
-  profileTurn,
   type PoseEstimate,
 } from "@/lib/face/quality";
 import type { FaceView, RawFaceLandmark } from "@/types/face";
@@ -24,13 +30,17 @@ export const CAPTURE_FRAME = {
   centerToleranceY: 0.08,
   coverageMin: 0.08,
   coverageMax: 0.7,
+  /** Profile size is forehead-to-chin height, not the narrower side-view area. */
+  profileHeightMin: 0.34,
+  profileHeightMax: 0.72,
   frontYaw: 12,
   roll: 8,
   pitch: 12,
   faceHeight: 0.62,
   frontWidthRatio: 0.72,
-  profileWidthRatio: 0.88,
+  profileWidthRatio: 0.92,
   maxWidthFraction: 0.74,
+  profileCenterToleranceX: 0.11,
 } as const;
 
 export interface GuideBox {
@@ -52,6 +62,7 @@ export interface CaptureAssessment {
   status: "searching" | "adjust" | "ready";
   message: string;
   profileFacing: "left" | "right";
+  profilePose: ProfilePoseState | null;
   checks: AlignmentCheck[];
 }
 
@@ -65,6 +76,10 @@ export interface LiveFaceSummary {
   eyeCollapse: number | null;
   noseLead: number | null;
   frankfortTilt: number | null;
+  facialHeight: number | null;
+  /** Profile composition point: behind the nose, so the nose is not forced to center. */
+  anchorX: number | null;
+  anchorY: number | null;
   oval: Array<{ x: number; y: number }>;
   eyeLine: [{ x: number; y: number }, { x: number; y: number }] | null;
   nose: { x: number; y: number } | null;
@@ -97,22 +112,33 @@ export function assessCaptureAlignment(
     eyeCollapse?: number | null;
     noseLead?: number | null;
     frankfortTilt?: number | null;
+    facialHeight?: number | null;
+    anchorX?: number | null;
+    anchorY?: number | null;
   },
   options?: { stable?: boolean },
 ): CaptureAssessment {
   const band = options?.stable ? 1.35 : 1;
   const hasFace = input.faceCount === 1;
-  const centerX = input.centerX;
-  const centerY = input.centerY;
+  const centerX = input.view === "profile" && input.anchorX != null ? input.anchorX : input.centerX;
+  const centerY = input.view === "profile" && input.anchorY != null ? input.anchorY : input.centerY;
+  const height = input.facialHeight ?? null;
   const distanceOk =
-    hasFace &&
-    input.coverage >= CAPTURE_FRAME.coverageMin / band &&
-    input.coverage <= CAPTURE_FRAME.coverageMax * band;
+    input.view === "profile"
+      ? hasFace &&
+        height !== null &&
+        height >= CAPTURE_FRAME.profileHeightMin / band &&
+        height <= CAPTURE_FRAME.profileHeightMax * band
+      : hasFace &&
+        input.coverage >= CAPTURE_FRAME.coverageMin / band &&
+        input.coverage <= CAPTURE_FRAME.coverageMax * band;
+  const toleranceX =
+    (input.view === "profile" ? CAPTURE_FRAME.profileCenterToleranceX : CAPTURE_FRAME.centerToleranceX) * band;
   const centerOk =
     hasFace &&
     centerX !== null &&
     centerY !== null &&
-    Math.abs(centerX - CAPTURE_FRAME.centerX) <= CAPTURE_FRAME.centerToleranceX * band &&
+    Math.abs(centerX - CAPTURE_FRAME.centerX) <= toleranceX &&
     Math.abs(centerY - CAPTURE_FRAME.centerY) <= CAPTURE_FRAME.centerToleranceY * band;
   const { yaw, pitch, roll } = input.pose;
   const frankfort = input.frankfortTilt;
@@ -126,13 +152,13 @@ export function assessCaptureAlignment(
         Math.abs(pitch) <= CAPTURE_FRAME.pitch * band;
   const profilePose =
     input.view === "profile"
-      ? profileTurn(yaw, { eyeCollapse: input.eyeCollapse ?? null, noseLead: input.noseLead ?? null }, band > 1)
+      ? classifyProfilePose(yaw, { eyeCollapse: input.eyeCollapse ?? null, noseLead: input.noseLead ?? null }, options?.stable === true)
       : null;
   const poseOk =
     hasFace &&
     (input.view === "front"
       ? yaw !== null && Math.abs(yaw) <= CAPTURE_FRAME.frontYaw * band
-      : profilePose !== "no");
+      : profilePose === "lateral");
 
   const checks: AlignmentCheck[] = [
     { id: "face", label: "One face", ok: hasFace },
@@ -142,16 +168,20 @@ export function assessCaptureAlignment(
     { id: "pose", label: input.view === "front" ? "Straight on" : "Side view", ok: poseOk },
   ];
   const ready = checks.every((check) => check.ok);
-  const failed = checks.find((check) => !check.ok);
+  const order: AlignmentCheck["id"][] =
+    input.view === "profile" ? ["face", "distance", "pose", "level", "center"] : ["face", "distance", "center", "level", "pose"];
+  const failed = order.map((id) => checks.find((check) => check.id === id)).find((check) => check && !check.ok);
   return {
     status: ready ? "ready" : hasFace ? "adjust" : "searching",
-    message:
-      ready && profilePose === "close"
-        ? "Close enough. If the far eyebrow is still visible, turn a little more, or hold still."
-        : ready || !failed
-          ? "Aligned. Hold still."
-          : instruction(input, failed.id, band),
+    message: ready
+      ? input.view === "profile"
+        ? "Good profile. Keep your head level."
+        : "Aligned. Hold still."
+      : failed
+        ? instruction({ ...input, centerX, centerY }, failed.id, band, profilePose)
+        : "Aligned. Hold still.",
     profileFacing: input.facesLeft ? "left" : "right",
+    profilePose,
     checks,
   };
 }
@@ -173,6 +203,9 @@ export function summarizeLiveFaces(
       eyeCollapse: null,
       noseLead: null,
       frankfortTilt: null,
+      facialHeight: null,
+      anchorX: null,
+      anchorY: null,
       oval: [],
       eyeLine: null,
       nose: null,
@@ -184,6 +217,7 @@ export function summarizeLiveFaces(
   const nose = face[1];
   const measured = lens && frame && frame.width > 1 && frame.height > 1 ? undistortLandmarks(face, frame, lens) : face;
   const cue = profileShapeCue(measured, frame);
+  const anchor = profileCompositionPoint(measured);
   return {
     faceCount: faces.length,
     pose: estimatePose(measured, frame),
@@ -194,6 +228,9 @@ export function summarizeLiveFaces(
     eyeCollapse: cue.eyeCollapse,
     noseLead: cue.noseLead,
     frankfortTilt: frame && frame.width > 0 && frame.height > 0 ? frankfortTilt(face, frame.width, frame.height) : null,
+    facialHeight: faceHeightFraction(measured),
+    anchorX: anchor?.x ?? null,
+    anchorY: anchor?.y ?? null,
     oval: faceOvalPoints(face),
     eyeLine:
       rightEye && leftEye
@@ -235,6 +272,43 @@ function faceBox(raw: RawFaceLandmark[]): { minX: number; maxX: number; minY: nu
   return { minX, maxX, minY, maxY };
 }
 
+/**
+ * Profile framing uses a point between the visible ear and the nose, closer
+ * to the ear. Centering that point leaves room in front of the nose and
+ * behind the head. The nose itself is not the target.
+ */
+export function profileCompositionPoint(raw: RawFaceLandmark[]): { x: number; y: number } | null {
+  const nose = usablePoint(raw[MP.pronasale]);
+  const forehead = usablePoint(raw[MP.foreheadApex]);
+  const chin = usablePoint(raw[MP.menton]);
+  if (!nose || !forehead || !chin) return null;
+  const posterior = farthestFrom(nose, [raw[MP.rightTragion], raw[MP.leftTragion], raw[MP.rightLateral[0]], raw[MP.leftLateral[0]]]);
+  const x = posterior ? posterior.x * 0.62 + nose.x * 0.38 : nose.x;
+  const y = (forehead.y + chin.y) / 2;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function usablePoint(point: RawFaceLandmark | undefined): RawFaceLandmark | null {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  return point;
+}
+
+function farthestFrom(nose: RawFaceLandmark, points: Array<RawFaceLandmark | undefined>): RawFaceLandmark | null {
+  let best: RawFaceLandmark | null = null;
+  let bestDistance = -1;
+  for (const point of points) {
+    const usable = usablePoint(point);
+    if (!usable) continue;
+    const distance = Math.abs(usable.x - nose.x);
+    if (distance > bestDistance) {
+      best = usable;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 function instruction(
   input: {
     view: FaceView;
@@ -248,27 +322,38 @@ function instruction(
     eyeCollapse?: number | null;
     noseLead?: number | null;
     frankfortTilt?: number | null;
+    facialHeight?: number | null;
   },
   failed: AlignmentCheck["id"],
   band: number,
+  profilePose: ProfilePoseState | null,
 ): string {
   if (failed === "face") {
-    return input.faceCount > 1 ? "Only one face can be in the frame." : "Step into the outline.";
+    if (input.faceCount > 1) return "Only one face can be in the frame.";
+    return input.view === "profile" ? "Turn to either side." : "Step into the outline.";
   }
   if (failed === "distance") {
+    if (input.view === "profile") {
+      const height = input.facialHeight ?? 0;
+      return height > CAPTURE_FRAME.profileHeightMax * band ? "Move back slightly." : "Move closer.";
+    }
     return input.coverage > CAPTURE_FRAME.coverageMax * band
       ? "Move back so the outline frames your whole face."
       : "Move closer until your face fills the outline.";
   }
+  if (failed === "pose" && input.view === "profile") return profilePoseMessage(profilePose ?? "frontal");
   if (failed === "center") return centerInstruction(input, band);
   if (failed === "level") return levelInstruction(input.view, input.pose, band);
   return poseInstruction(input.view);
 }
 
 function centerInstruction(
-  input: { centerX: number | null; centerY: number | null; mirroredPreview: boolean },
+  input: { view?: FaceView; centerX: number | null; centerY: number | null; mirroredPreview: boolean },
   band: number,
 ): string {
+  if (input.view === "profile") {
+    return "Center your head in the brackets, with room in front of your nose and behind your ear.";
+  }
   if (input.centerX === null || input.centerY === null) return "Center your face in the outline.";
   const dx = input.centerX - CAPTURE_FRAME.centerX;
   const dy = input.centerY - CAPTURE_FRAME.centerY;
@@ -286,7 +371,7 @@ function centerInstruction(
 }
 
 function levelInstruction(view: FaceView, pose: PoseEstimate, band: number): string {
-  if (view === "profile") return "Look straight ahead, not up or down. Keep the ear uncovered.";
+  if (view === "profile") return "Keep your gaze level — don't raise or lower your chin.";
   const roll = pose.roll === null ? Number.POSITIVE_INFINITY : Math.abs(pose.roll);
   const pitch = pose.pitch === null ? Number.POSITIVE_INFINITY : Math.abs(pose.pitch);
   if (roll >= pitch && roll > CAPTURE_FRAME.roll * band) return "Level your head with the eye line.";
@@ -294,6 +379,6 @@ function levelInstruction(view: FaceView, pose: PoseEstimate, band: number): str
 }
 
 function poseInstruction(view: FaceView): string {
-  if (view === "profile") return "Turn until the far eyebrow is hidden. Look straight ahead, with the ear uncovered.";
+  if (view === "profile") return "Turn to either side.";
   return "Square your face to the camera so it matches the outline.";
 }

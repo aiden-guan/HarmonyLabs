@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
@@ -12,16 +12,19 @@ import {
   Sparkles,
   FileImage,
 } from "lucide-react";
-import { CameraCapture } from "@/components/upload/camera-capture";
+import { CameraCapture, type CameraCaptureResult } from "@/components/upload/camera-capture";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { interpretDetection } from "@/lib/face/interpret";
-import { detectRawFace, disposeFaceLandmarker } from "@/lib/mediapipe/face-landmarker";
-import { levelPreparedImage, mirrorPreparedImage, prepareImage, type PreparedImage } from "@/lib/face/prepare-image";
 import { sampleLandmarks } from "@/fixtures/sample-face";
-import type { FaceView, PhotoQuality, SemanticLandmark } from "@/types/face";
+import { createCaptureQueue } from "@/lib/face/capture-queue";
+import { markCapture, measureCapture } from "@/lib/face/capture-timing";
+import { interpretDetection, type InterpretedPhoto } from "@/lib/face/interpret";
+import { disposeLensCorrector } from "@/lib/face/lens-correct";
+import { levelPreparedImage, mirrorPreparedImage, prepareImage, type PreparedImage } from "@/lib/face/prepare-image";
+import { detectRawFace, disposeFaceLandmarker, disposeStillDetector, prewarmStillDetector } from "@/lib/mediapipe/face-landmarker";
+import type { FaceView, PhotoQuality, RawFaceLandmark, SemanticLandmark } from "@/types/face";
 import { cn } from "@/lib/utils";
 
 const frontGuidance = [
@@ -32,12 +35,10 @@ const frontGuidance = [
   "No heavy shadows or hair occlusion",
 ];
 
-const profileGuidance = [
-  "True 90° side profile",
-  "Ear visible & uncovered",
-  "Far eyebrow completely hidden",
-  "Look straight ahead",
-  "Neutral chin position",
+const profileSteps = [
+  "Keep your eyes looking straight ahead.",
+  "Keep your chin neutral — don't look up or down.",
+  "Keep your ear uncovered.",
 ];
 
 type Step = "setup" | "front" | "profile" | "review";
@@ -55,10 +56,35 @@ export function NewAnalysisWizard() {
   const [name, setName] = useState("");
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [failedView, setFailedView] = useState<FaceView | null>(null);
   const [pending, setPending] = useState(false);
+  const [saving, setSaving] = useState<Partial<Record<FaceView, boolean>>>({});
   const [previews, setPreviews] = useState<Partial<Record<FaceView, string>>>({});
   const [qualities, setQualities] = useState<Partial<Record<FaceView, PhotoQuality>>>({});
+  const queueRef = useRef(createCaptureQueue());
+  const errorsRef = useRef<Partial<Record<FaceView, string>>>({});
+  const heldRef = useRef<Partial<Record<FaceView, { held: HeldCapture; interpreted: InterpretedPhoto; detected: boolean }>>>({});
+  const mountedRef = useRef(true);
+  const previewsRef = useRef(previews);
+
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      disposeStillDetector();
+      disposeLensCorrector();
+      void disposeFaceLandmarker();
+      for (const url of Object.values(previewsRef.current)) {
+        if (url) URL.revokeObjectURL(url);
+      }
+    };
+  }, []);
 
   function rememberPreview(view: FaceView, url: string) {
     setPreviews((current) => {
@@ -90,11 +116,11 @@ export function NewAnalysisWizard() {
   async function useSample() {
     setPending(true);
     setError("");
-    setStatus("Preparing geometric sample");
+    setNotice("Preparing geometric sample");
     const response = await fetch("/api/analyses/sample", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     setPending(false);
-    setStatus("");
+    setNotice("");
     if (!response.ok) {
       setError(body.error ?? "Could not load the sample.");
       return;
@@ -102,25 +128,62 @@ export function NewAnalysisWizard() {
     router.push(`/analysis/${body.analysisId}/edit`);
   }
 
+  function onCamera(view: FaceView, result: CameraCaptureResult) {
+    if (!analysisId) return;
+    markCapture("landmark-interpretation-start");
+    const interpreted = interpretDetection({
+      faces: result.faces,
+      view,
+      blurScore: result.blurScore,
+      brightnessScore: result.brightnessScore,
+      width: result.width,
+      height: result.height,
+    });
+    markCapture("landmark-interpretation-end");
+    measureCapture("landmark-interpretation", "landmark-interpretation-start", "landmark-interpretation-end");
+    if (interpreted.hardError) {
+      setError(interpreted.hardError);
+      return;
+    }
+    setError("");
+    beginSave(
+      view,
+      {
+        image: result.image,
+        rawFaces: result.rawFaces,
+        width: result.width,
+        height: result.height,
+        blurScore: result.blurScore,
+        brightnessScore: result.brightnessScore,
+      },
+      interpreted,
+      true,
+    );
+  }
+
   async function onFile(view: FaceView, file: File) {
     if (!analysisId) return;
     setPending(true);
     setError("");
+    setNotice("Preparing photo");
+    markCapture("capture-to-next-step-start");
     try {
-      setStatus("Preparing photo");
       const prepared = await prepareImage(file);
-      setStatus("Detecting face");
+      setNotice("Detecting face");
       let detection;
       try {
+        markCapture("face-detection-start");
         detection = await detectRawFace(prepared.blob, view);
+        markCapture("face-detection-end");
+        measureCapture("face-detection", "face-detection-start", "face-detection-end");
       } catch (reason) {
         throw new Error(
           reason instanceof Error
-            ? `${reason.message} You can place landmarks manually if the browser cannot start the detector.`
-            : "Face detection failed.",
+            ? `${reason.message} You can place landmarks manually, or try another photo.`
+            : "Face detection failed. You can place landmarks manually, or try another photo.",
         );
       }
-      setStatus("Mapping landmarks");
+      markCapture("landmark-interpretation-start");
       const interpreted = interpretDetection({
         faces: detection.faces,
         view,
@@ -129,27 +192,31 @@ export function NewAnalysisWizard() {
         width: prepared.width,
         height: prepared.height,
       });
+      markCapture("landmark-interpretation-end");
+      measureCapture("landmark-interpretation", "landmark-interpretation-start", "landmark-interpretation-end");
       if (interpreted.hardError) {
         setError(interpreted.hardError);
         rememberPreview(view, prepared.previewUrl);
-        setPending(false);
-        setStatus("");
         return;
       }
-      const image =
-        view === "profile"
-          ? await alignProfile(prepared, interpreted.quality.mirrored, interpreted.levelRadians)
-          : prepared;
-      setStatus("Saving analysis");
-      await upload(view, image, interpreted.landmarks, interpreted.quality);
-      rememberPreview(view, image.previewUrl);
-      setQualities((current) => ({ ...current, [view]: interpreted.quality }));
-      setStep(view === "front" ? "profile" : "review");
+      beginSave(
+        view,
+        {
+          image: Promise.resolve({ ...prepared, corrected: true }),
+          rawFaces: detection.faces,
+          width: prepared.width,
+          height: prepared.height,
+          blurScore: prepared.blurScore,
+          brightnessScore: prepared.brightnessScore,
+        },
+        interpreted,
+        true,
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The photo could not be processed.");
     } finally {
       setPending(false);
-      setStatus("");
+      setNotice("");
     }
   }
 
@@ -172,10 +239,19 @@ export function NewAnalysisWizard() {
         warnings: ["Landmarks were placed from a template because automatic detection was not accepted. Drag every point onto the photograph."],
         mirrored: false,
       };
-      await upload(view, prepared, landmarks, quality);
-      rememberPreview(view, prepared.previewUrl);
-      setQualities((current) => ({ ...current, [view]: quality }));
-      setStep(view === "front" ? "profile" : "review");
+      beginSave(
+        view,
+        {
+          image: Promise.resolve({ ...prepared, corrected: true }),
+          rawFaces: [],
+          width: prepared.width,
+          height: prepared.height,
+          blurScore: prepared.blurScore,
+          brightnessScore: prepared.brightnessScore,
+        },
+        { hardError: null, landmarks, quality, levelRadians: null },
+        false,
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save the photo.");
     } finally {
@@ -183,29 +259,95 @@ export function NewAnalysisWizard() {
     }
   }
 
-  async function upload(
-    view: FaceView,
-    prepared: { blob: Blob; width: number; height: number },
-    landmarks: SemanticLandmark[],
-    quality: PhotoQuality,
-  ) {
-    const form = new FormData();
-    form.set("file", new File([prepared.blob], `${view}.jpg`, { type: prepared.blob.type }));
-    form.set("view", view);
-    form.set("width", String(prepared.width));
-    form.set("height", String(prepared.height));
-    form.set("quality", JSON.stringify(quality));
-    const photo = await fetch(`/api/analyses/${analysisId}/photos`, { method: "POST", body: form });
-    const photoBody = await photo.json().catch(() => ({}));
-    if (!photo.ok) throw new Error(photoBody.error ?? "Upload failed.");
-    const saved = await fetch(`/api/analyses/${analysisId}/landmarks`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ view, landmarks, quality, detected: true }),
+  function beginSave(view: FaceView, held: HeldCapture, interpreted: InterpretedPhoto, detected: boolean) {
+    heldRef.current[view] = { held, interpreted, detected };
+    setQualities((current) => ({ ...current, [view]: interpreted.quality }));
+    errorsRef.current[view] = undefined;
+    setFailedView(null);
+    setSaveError("");
+    setSaving((current) => ({ ...current, [view]: true }));
+    if (view === "front") {
+      markCapture("capture-to-next-step-end");
+      measureCapture("total-capture-to-next-step", "capture-to-next-step-start", "capture-to-next-step-end");
+      setStep("profile");
+    }
+    const session = queueRef.current.start(view);
+    const job = session.enqueue(async () => {
+      if (!session.current()) return;
+      try {
+        await persistCapture(view, held, interpreted, detected);
+        if (session.current()) errorsRef.current[view] = undefined;
+      } catch (reason) {
+        if (!session.current()) return;
+        errorsRef.current[view] = reason instanceof Error ? reason.message : "Could not save the photo.";
+      }
     });
-    const savedBody = await saved.json().catch(() => ({}));
-    if (!saved.ok) throw new Error(savedBody.error ?? "Could not save landmarks.");
+    void job.then(async () => {
+      if (!mountedRef.current || !session.current()) return;
+      setSaving((current) => ({ ...current, [view]: false }));
+      if (view === "front") {
+        const problem = errorsRef.current.front;
+        if (problem) {
+          setFailedView("front");
+          setSaveError(problem);
+        }
+        return;
+      }
+      await queueRef.current.tail("front");
+      if (!mountedRef.current || !session.current()) return;
+      const problem = errorsRef.current.front || errorsRef.current.profile;
+      if (problem) {
+        setFailedView(errorsRef.current.profile ? "profile" : "front");
+        setSaveError(problem);
+        return;
+      }
+      disposeStillDetector();
+      disposeLensCorrector();
+      setStep("review");
+    });
   }
+
+  async function persistCapture(view: FaceView, held: HeldCapture, interpreted: InterpretedPhoto, detected: boolean) {
+    const prepared = await held.image;
+    let image: PreparedImage = prepared;
+    let final = interpreted;
+    if (!prepared.corrected) {
+      final = interpretDetection({
+        faces: held.rawFaces,
+        view,
+        blurScore: held.blurScore,
+        brightnessScore: held.brightnessScore,
+        width: image.width,
+        height: image.height,
+      });
+      if (final.hardError) throw new Error(final.hardError);
+    }
+    if (view === "profile") image = await alignProfile(image, final.quality.mirrored, final.levelRadians);
+    if (final.landmarks.length === 0) throw new Error("Could not map landmarks for this photo.");
+    await postCapture(analysisId, view, image, final.landmarks, final.quality, detected);
+    if (!mountedRef.current) return;
+    rememberPreview(view, image.previewUrl);
+    setQualities((current) => ({ ...current, [view]: final.quality }));
+  }
+
+  function retrySave() {
+    if (!failedView) return;
+    const saved = heldRef.current[failedView];
+    if (!saved) return;
+    setSaveError("");
+    setError("");
+    beginSave(failedView, saved.held, saved.interpreted, saved.detected);
+  }
+
+  const saveLine = saving.front && saving.profile
+    ? "Saving photos…"
+    : saving.front
+      ? step === "profile"
+        ? "Saving front photo… You can line up your profile."
+        : "Saving front photo…"
+      : saving.profile
+        ? "Saving profile photo…"
+        : notice;
 
   const currentStepIndex = steps.findIndex((s) => s.id === step);
 
@@ -268,7 +410,7 @@ export function NewAnalysisWizard() {
       {/* Step Content */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={step}
+          key={step === "front" || step === "profile" ? "capture" : step}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
@@ -323,13 +465,13 @@ export function NewAnalysisWizard() {
 
           {step === "front" || step === "profile" ? (
             <PhotoStep
-              key={step}
               view={step}
               preview={previews[step]}
               pending={pending}
-              status={status}
-              onFile={(file) => onFile(step, file)}
-              onManual={(file) => placeManually(step, file)}
+              notice={saveLine}
+              onCamera={(result) => onCamera(step, result)}
+              onFile={(file) => void onFile(step, file)}
+              onManual={(file) => void placeManually(step, file)}
             />
           ) : null}
 
@@ -394,6 +536,8 @@ export function NewAnalysisWizard() {
                   <Button
                     onClick={() => {
                       void disposeFaceLandmarker();
+                      disposeStillDetector();
+                      disposeLensCorrector();
                       router.push(`/analysis/${analysisId}/edit`);
                     }}
                     className="w-full sm:w-auto gap-2"
@@ -412,13 +556,69 @@ export function NewAnalysisWizard() {
         <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-4 text-sm text-signal flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-semibold">Processing error</p>
+            <p className="font-semibold">This photo needs another try</p>
             <p className="text-xs leading-relaxed">{error}</p>
+          </div>
+        </div>
+      ) : null}
+      {saveError ? (
+        <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-4 text-sm text-signal flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-2">
+            <p className="font-semibold">The photo is still on this device, but it could not be saved.</p>
+            <p className="text-xs leading-relaxed">{saveError}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={retrySave}>
+                Retry save
+              </Button>
+              {failedView === "front" && step === "profile" ? (
+                <Button size="sm" variant="outline" onClick={() => setStep("front")}>
+                  Retake front photo
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+interface HeldCapture {
+  image: Promise<PreparedImage & { corrected: boolean }>;
+  rawFaces: RawFaceLandmark[][];
+  width: number;
+  height: number;
+  blurScore: number;
+  brightnessScore: number;
+}
+
+async function postCapture(
+  analysisId: string | null,
+  view: FaceView,
+  prepared: { blob: Blob; width: number; height: number },
+  landmarks: SemanticLandmark[],
+  quality: PhotoQuality,
+  detected: boolean,
+) {
+  if (!analysisId) throw new Error("The analysis is not ready.");
+  const form = new FormData();
+  form.set("file", new File([prepared.blob], `${view}.jpg`, { type: prepared.blob.type || "image/jpeg" }));
+  form.set("view", view);
+  form.set("width", String(prepared.width));
+  form.set("height", String(prepared.height));
+  form.set("quality", JSON.stringify(quality));
+  form.set("landmarks", JSON.stringify(landmarks));
+  form.set("detected", detected ? "true" : "false");
+  markCapture("photo-upload-start");
+  markCapture("landmark-save-start");
+  const response = await fetch(`/api/analyses/${analysisId}/captures`, { method: "POST", body: form });
+  markCapture("photo-upload-end");
+  markCapture("landmark-save-end");
+  measureCapture("photo-upload", "photo-upload-start", "photo-upload-end");
+  measureCapture("landmark-save", "landmark-save-start", "landmark-save-end");
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error ?? "Could not save the photo.");
 }
 
 async function alignProfile(prepared: PreparedImage, mirrored: boolean, levelRadians: number | null) {
@@ -439,25 +639,48 @@ function PhotoStep({
   view,
   preview,
   pending,
-  status,
+  notice,
+  onCamera,
   onFile,
   onManual,
 }: {
   view: FaceView;
   preview?: string;
   pending: boolean;
-  status: string;
+  notice: string;
+  onCamera: (result: CameraCaptureResult) => void;
   onFile: (file: File) => void;
   onManual: (file: File) => void;
 }) {
   const [mode, setMode] = useState<"camera" | "upload">("camera");
-  const [file, setFile] = useState<File | null>(null);
+  const [fileState, setFileState] = useState<{ view: FaceView; file: File | null }>({ view, file: null });
+  const file = fileState.view === view ? fileState.file : null;
+  const viewRef = useRef(view);
   const photoLabel = view === "front" ? "Front photograph" : "Profile photograph";
-  const guidance = view === "front" ? frontGuidance : profileGuidance;
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    if (mode === "upload") prewarmStillDetector();
+  }, [mode]);
 
   function take(next: File) {
-    setFile(next);
+    setFileState({ view, file: next });
     onFile(next);
+  }
+
+  function acceptCamera(result: CameraCaptureResult) {
+    const acceptedView = view;
+    void result.image.then((image) => {
+      if (viewRef.current !== acceptedView) return;
+      setFileState({
+        view: acceptedView,
+        file: new File([image.blob], `${acceptedView}.jpg`, { type: image.blob.type || "image/jpeg" }),
+      });
+    });
+    onCamera(result);
   }
 
   return (
@@ -468,8 +691,8 @@ function PhotoStep({
             <CardTitle>{photoLabel}</CardTitle>
             <CardDescription className="mt-1">
               {view === "front"
-                ? "Direct canonical face photo with neutral expression at eye level."
-                : "True 90° side profile with ear visible and far eyebrow hidden."}
+                ? "Face the camera with a neutral expression, at eye level."
+                : "A true side view, looking straight ahead."}
             </CardDescription>
           </div>
 
@@ -508,26 +731,28 @@ function PhotoStep({
       </CardHeader>
 
       <CardContent>
+        {view === "profile" ? <ProfileInstructions /> : null}
         {mode === "camera" ? (
           <div className="space-y-4">
-            <CameraCapture view={view} pending={pending} onCapture={take} />
+            <CameraCapture view={view} onCapture={acceptCamera} />
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Guidance chips */}
-            <div className="rounded-md border border-line bg-panel-muted p-3">
-              <span className="font-semibold text-xs text-ink block mb-2">
-                Requirements for accurate geometry:
-              </span>
-              <ul className="grid gap-1.5 sm:grid-cols-2 text-xs text-muted">
-                {guidance.map((item) => (
-                  <li key={item} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-accent shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {view === "front" ? (
+              <div className="rounded-md border border-line bg-panel-muted p-3">
+                <span className="font-semibold text-xs text-ink block mb-2">
+                  Requirements for accurate geometry:
+                </span>
+                <ul className="grid gap-1.5 sm:grid-cols-2 text-xs text-muted">
+                  {frontGuidance.map((item) => (
+                    <li key={item} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-accent shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {/* Drop / Pick Zone */}
             <label
@@ -565,9 +790,9 @@ function PhotoStep({
           </div>
         )}
 
-        {status ? (
-          <p className="mt-3 text-xs font-mono text-accent animate-pulse">
-            Status: {status}…
+        {notice ? (
+          <p className="mt-3 text-sm text-muted" role="status">
+            {notice}
           </p>
         ) : null}
 
@@ -588,5 +813,34 @@ function PhotoStep({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ProfileInstructions() {
+  return (
+    <div className="mb-4 rounded-md border border-line bg-panel-muted p-3">
+      <p className="text-sm font-medium text-ink">Turn your head 90° to either side.</p>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+        {profileSteps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+      <p className="mt-2 text-xs text-muted">When you are fully sideways, the far eyebrow should no longer be visible.</p>
+      <ProfileTurnPictogram />
+    </div>
+  );
+}
+
+function ProfileTurnPictogram() {
+  return (
+    <svg viewBox="0 0 168 52" className="mt-3 h-12 w-40 text-muted" aria-hidden="true">
+      <circle cx="22" cy="26" r="12" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="18" cy="24" r="1.2" fill="currentColor" />
+      <circle cx="26" cy="24" r="1.2" fill="currentColor" />
+      <path d="M46 32 C 68 34, 78 16, 104 18" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M96 12 L106 18 L96 24" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="132" cy="26" r="12" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M132 14 V38" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   );
 }

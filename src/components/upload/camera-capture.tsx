@@ -9,9 +9,10 @@ import {
   lensForDevice,
   previewFrameStyle,
   readDeviceSignals,
-  undistortRaster,
+  undistortLandmarks,
   type LensModel,
 } from "@/lib/face/camera-optics";
+import { liveMeshIsFresh, resolveCaptureFaces } from "@/lib/face/capture-route";
 import {
   assessCaptureAlignment,
   captureGuideBox,
@@ -20,12 +21,55 @@ import {
   type GuideBox,
   type LiveFaceSummary,
 } from "@/lib/face/capture-guide";
-import { detectLiveFace, retainLiveFaceLandmarker } from "@/lib/mediapipe/face-landmarker";
+import { markCapture, measureCapture } from "@/lib/face/capture-timing";
+import { correctCapturedCanvas } from "@/lib/face/lens-correct";
+import { scoreImageData, type PreparedImage } from "@/lib/face/prepare-image";
+import {
+  advanceStability,
+  FRONT_STABLE_MS,
+  HOLD_STILL_MS,
+  nextProfileFacing,
+  POSE_GRACE_MS,
+  PROFILE_STABLE_MS,
+  type StabilityClock,
+} from "@/lib/face/profile-pose";
+import { detectCanvas, detectLiveFace, retainLiveFaceLandmarker } from "@/lib/mediapipe/face-landmarker";
+import { createSessionLease } from "@/lib/mediapipe/session-lease";
 import { cn } from "@/lib/utils";
 import type { FaceView, RawFaceLandmark } from "@/types/face";
 
-const PROFILE_SILHOUETTE =
-  "M 0.36 0.18 C 0.46 0.04 0.64 0.06 0.68 0.22 C 0.72 0.34 0.70 0.40 0.74 0.46 C 0.92 0.52 0.78 0.57 0.68 0.60 C 0.76 0.66 0.74 0.72 0.70 0.76 C 0.66 0.86 0.56 0.98 0.44 0.94 C 0.30 0.88 0.20 0.74 0.18 0.58 C 0.16 0.40 0.22 0.26 0.36 0.18 Z";
+const cameraLease = createSessionLease<MediaStream>({
+  graceMs: 500,
+  open: async (key) => {
+    const [device, orientation] = key.split(":");
+    const portrait = orientation === "portrait";
+    const video = cameraVideoConstraints(device === "mobile" ? "mobile" : "desktop", portrait);
+    const supported = navigator.mediaDevices.getSupportedConstraints?.() as { resizeMode?: boolean } | undefined;
+    if (supported?.resizeMode) {
+      (video as MediaTrackConstraints & { resizeMode?: { ideal: "none" } }).resizeMode = { ideal: "none" };
+    }
+    return openCamera(video);
+  },
+  close: (stream) => {
+    stream.getTracks().forEach((track) => track.stop());
+  },
+});
+
+export interface CameraCaptureResult {
+  width: number;
+  height: number;
+  /** Landmarks in the same space as a successfully corrected photo. */
+  faces: RawFaceLandmark[][];
+  /** Landmarks on the raw camera frame, used if lens correction cannot be stored. */
+  rawFaces: RawFaceLandmark[][];
+  detectedAt: number;
+  capturedAt: number;
+  lens: LensModel;
+  usedLiveMesh: boolean;
+  blurScore: number;
+  brightnessScore: number;
+  image: Promise<PreparedImage & { corrected: boolean }>;
+}
 
 type CameraPhase = "starting" | "live" | "blocked" | "missing" | "unavailable";
 
@@ -38,47 +82,90 @@ function idleAssessment(view: FaceView): CaptureAssessment {
     centerX: null,
     centerY: null,
     facesLeft: false,
-    mirroredPreview: view === "front",
+    mirroredPreview: true,
   });
+}
+
+function cloneFaces(faces: RawFaceLandmark[][]): RawFaceLandmark[][] {
+  return faces.map((face) => face.map((point) => ({ ...point })));
 }
 
 export function CameraCapture({
   view,
-  pending,
   onCapture,
 }: {
   view: FaceView;
-  pending: boolean;
-  onCapture: (file: File) => void;
+  onCapture: (result: CameraCaptureResult) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCaptureRef = useRef(onCapture);
-  const pendingRef = useRef(pending);
-  const countdownRef = useRef<number | null>(null);
-  const readyStreak = useRef(0);
+  const viewRef = useRef(view);
+  const facingRef = useRef<"left" | "right" | null>(null);
+  const clockRef = useRef<StabilityClock>({ since: null, lastOk: null });
   const stableReady = useRef(false);
   const pauseAuto = useRef(false);
   const shooting = useRef(false);
-  const facing = useRef<"left" | "right">("right");
+  const holdTimer = useRef<number | null>(null);
   const lensRef = useRef<LensModel>(lensForDevice("desktop"));
+  const latestFacesRef = useRef<RawFaceLandmark[][]>([]);
+  const latestDetectionTimestampRef = useRef<number | null>(null);
+  const latestFrameDimensionsRef = useRef<{ width: number; height: number } | null>(null);
+  const applyFacesRef = useRef<(faces: RawFaceLandmark[][], detectedAt: number) => void>(() => undefined);
   const [session, setSession] = useState(0);
   const [profileNote, setProfileNote] = useState("");
   const [holding, setHolding] = useState("");
+  const [holdLabel, setHoldLabel] = useState("");
   const [phase, setPhase] = useState<CameraPhase>(() =>
     process.env.NEXT_PUBLIC_E2E === "1" && process.env.NODE_ENV !== "production" ? "unavailable" : "starting",
   );
-  const [frame, setFrame] = useState({ width: 4, height: 3 });
+  const [frame, setFrame] = useState({ width: 960, height: 720 });
   const [assessment, setAssessment] = useState<CaptureAssessment>(() => idleAssessment(view));
   const [live, setLive] = useState<LiveFaceSummary | null>(null);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [facing, setFacing] = useState<"left" | "right" | null>(null);
   const [captureError, setCaptureError] = useState("");
+  const [trackedView, setTrackedView] = useState(view);
+  if (trackedView !== view) {
+    setTrackedView(view);
+    setFacing(null);
+    setAssessment(idleAssessment(view));
+    setCaptureError("");
+    setHolding("");
+    setHoldLabel("");
+  }
 
-  onCaptureRef.current = onCapture;
-  pendingRef.current = pending;
+  function disarmHold() {
+    if (holdTimer.current === null) return;
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    setHoldLabel("");
+  }
+
+  function armHold() {
+    if (holdTimer.current !== null || pauseAuto.current || shooting.current) return;
+    setHoldLabel("Hold still");
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null;
+      setHoldLabel("");
+      void takePhoto();
+    }, HOLD_STILL_MS);
+  }
 
   useEffect(() => {
-    if (!pending) shooting.current = false;
-  }, [pending]);
+    onCaptureRef.current = onCapture;
+  });
+
+  useEffect(() => {
+    viewRef.current = view;
+    clockRef.current = { since: null, lastOk: null };
+    stableReady.current = false;
+    facingRef.current = null;
+    pauseAuto.current = false;
+    shooting.current = false;
+    if (holdTimer.current !== null) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }, [view]);
 
   useEffect(() => {
     const query = window.matchMedia("(orientation: portrait)");
@@ -99,8 +186,21 @@ export function CameraCapture({
     let busy = false;
     let raf = 0;
     let last = 0;
-    let stream: MediaStream | null = null;
-    const release = retainLiveFaceLandmarker();
+    let released = false;
+    const releaseDetector = retainLiveFaceLandmarker();
+    const portrait = window.matchMedia("(orientation: portrait)").matches;
+    const device = detectDeviceClass(readDeviceSignals());
+    const lens = lensForDevice(device);
+    lensRef.current = lens;
+    setProfileNote(cameraProfileNote(device));
+    const streamKey = `${device}:${portrait ? "portrait" : "landscape"}`;
+
+    const releaseAll = () => {
+      if (released) return;
+      released = true;
+      releaseDetector();
+      cameraLease.release();
+    };
 
     const loop = (now: number) => {
       if (cancelled) return;
@@ -108,9 +208,10 @@ export function CameraCapture({
       if (busy || now - last < 200 || video.readyState < 2) return;
       last = now;
       busy = true;
+      const requestedAt = now;
       void detectLiveFace(video, now)
         .then((faces) => {
-          if (!cancelled) applyFaces(faces);
+          if (!cancelled) applyFacesRef.current(faces, requestedAt);
         })
         .catch(() => {
           if (!cancelled) setCaptureError("The alignment guide stopped. You can still capture, or upload a photo.");
@@ -120,12 +221,6 @@ export function CameraCapture({
           busy = false;
         });
     };
-
-    const portrait = window.matchMedia("(orientation: portrait)").matches;
-    const device = detectDeviceClass(readDeviceSignals());
-    const lens = lensForDevice(device);
-    lensRef.current = lens;
-    setProfileNote(cameraProfileNote(device));
 
     const onMeta = () => {
       if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -139,20 +234,11 @@ export function CameraCapture({
     video.addEventListener("loadedmetadata", onMeta);
     video.addEventListener("resize", onMeta);
 
-    const videoConstraints = cameraVideoConstraints(device, portrait);
-    const supported = navigator.mediaDevices.getSupportedConstraints?.() as { resizeMode?: boolean } | undefined;
-    if (supported?.resizeMode) {
-      (videoConstraints as MediaTrackConstraints & { resizeMode?: { ideal: "none" } }).resizeMode = { ideal: "none" };
-    }
-
-    void openCamera(videoConstraints)
-      .then(async (next) => {
-        if (cancelled) {
-          next.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        stream = next;
-        video.srcObject = next;
+    void cameraLease
+      .acquire(streamKey)
+      .then(async (stream) => {
+        if (cancelled) return;
+        video.srcObject = stream;
         await video.play();
         onMeta();
         if (cancelled) return;
@@ -168,64 +254,55 @@ export function CameraCapture({
       cancelAnimationFrame(raf);
       video.removeEventListener("loadedmetadata", onMeta);
       video.removeEventListener("resize", onMeta);
-      stream?.getTracks().forEach((track) => track.stop());
       video.srcObject = null;
       const finish = () => {
         if (busy) {
           requestAnimationFrame(finish);
           return;
         }
-        release();
+        releaseAll();
       };
       finish();
     };
-    // Countdown and capture state live in refs so a rotated camera can restart
-    // without rebuilding the detection loop around every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, session]);
+  }, [session]);
 
   useEffect(() => {
-    if (countdown === null) return;
-    if (countdown <= 0) {
-      void takePhoto();
-      return;
-    }
-    const id = window.setTimeout(() => {
-      setCountdown((value) => {
-        const next = value === null ? null : value - 1;
-        countdownRef.current = next;
-        return next;
-      });
-    }, 800);
-    return () => window.clearTimeout(id);
-  }, [countdown]);
-
-  function applyFaces(faces: RawFaceLandmark[][]) {
+    applyFacesRef.current = (faces, detectedAt) => {
     const video = videoRef.current;
-    const summary = summarizeLiveFaces(
-      faces,
-      {
-        width: video?.videoWidth ?? 0,
-        height: video?.videoHeight ?? 0,
-      },
-      lensRef.current,
-    );
-    if (view === "profile" && summary.faceCount === 1 && Math.abs(summary.pose.yaw ?? 0) > 20) {
-      facing.current = summary.facesLeft ? "left" : "right";
+    const width = video?.videoWidth ?? 0;
+    const height = video?.videoHeight ?? 0;
+    if (width > 1 && height > 1) {
+      latestFacesRef.current = cloneFaces(faces);
+      latestDetectionTimestampRef.current = detectedAt;
+      latestFrameDimensionsRef.current = { width, height };
+    }
+    const summary = summarizeLiveFaces(faces, { width, height }, lensRef.current);
+    const currentView = viewRef.current;
+    if (currentView === "profile" && summary.faceCount === 1) {
+      facingRef.current = nextProfileFacing(
+        facingRef.current,
+        summary.pose.yaw,
+        summary.facesLeft,
+        summary.eyeCollapse,
+      );
+      setFacing(facingRef.current);
     }
     const next = assessCaptureAlignment(
       {
-        view,
+        view: currentView,
         faceCount: summary.faceCount,
         pose: summary.pose,
         coverage: summary.coverage,
         centerX: summary.centerX,
         centerY: summary.centerY,
         facesLeft: summary.facesLeft,
-        mirroredPreview: view === "front",
+        mirroredPreview: true,
         eyeCollapse: summary.eyeCollapse,
         noseLead: summary.noseLead,
         frankfortTilt: summary.frankfortTilt,
+        facialHeight: summary.facialHeight,
+        anchorX: summary.anchorX,
+        anchorY: summary.anchorY,
       },
       { stable: stableReady.current },
     );
@@ -233,59 +310,125 @@ export function CameraCapture({
     setLive(summary.faceCount > 0 ? summary : null);
     setAssessment(next);
     if (next.status !== "ready") pauseAuto.current = false;
-    if (next.status === "ready") {
-      readyStreak.current += 1;
-      if (
-        readyStreak.current >= 3 &&
-        countdownRef.current === null &&
-        !pauseAuto.current &&
-        !shooting.current &&
-        !pendingRef.current
-      ) {
-        countdownRef.current = 3;
-        setCountdown(3);
-      }
+    const holdMs = currentView === "profile" ? PROFILE_STABLE_MS : FRONT_STABLE_MS;
+    const stepped = advanceStability(clockRef.current, next.status === "ready", detectedAt, holdMs, POSE_GRACE_MS);
+    clockRef.current = stepped.clock;
+    if (!stepped.armed || pauseAuto.current || shooting.current) {
+      if (!stepped.armed) disarmHold();
       return;
     }
-    readyStreak.current = 0;
-    if (countdownRef.current !== null) {
-      countdownRef.current = null;
-      setCountdown(null);
-    }
-  }
+    armHold();
+    };
+  });
 
   async function takePhoto() {
-    if (shooting.current || pendingRef.current) return;
+    if (shooting.current) return;
     const video = videoRef.current;
     if (!video || video.videoWidth < 2) return;
     shooting.current = true;
     pauseAuto.current = true;
-    countdownRef.current = null;
-    setCountdown(null);
+    disarmHold();
     setCaptureError("");
-    setHolding("Correcting lens distortion");
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    markCapture("capture-to-next-step-start");
+    markCapture("camera-snapshot-start");
     try {
-      onCaptureRef.current(await captureFrame(video, lensRef.current));
+      const maxEdge = 1600;
+      const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+      const width = Math.max(1, Math.round(video.videoWidth * scale));
+      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("This browser could not capture the camera frame.");
+      context.drawImage(video, 0, 0, width, height);
+      markCapture("camera-snapshot-end");
+      measureCapture("camera-snapshot", "camera-snapshot-start", "camera-snapshot-end");
+
+      markCapture("image-stats-start");
+      const sample = document.createElement("canvas");
+      sample.width = 160;
+      sample.height = Math.max(1, Math.round((160 * height) / width));
+      const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+      if (!sampleContext) throw new Error("This browser could not read the camera frame.");
+      sampleContext.drawImage(video, 0, 0, sample.width, sample.height);
+      const pixels = sampleContext.getImageData(0, 0, sample.width, sample.height);
+      const scores = scoreImageData(pixels.data, sample.width, sample.height);
+      markCapture("image-stats-end");
+      measureCapture("image-stats", "image-stats-start", "image-stats-end");
+
+      const capturedAt = performance.now();
+      const lens = lensRef.current;
+      const captureFrame = { width: video.videoWidth, height: video.videoHeight };
+      const live = {
+        faces: latestFacesRef.current,
+        detectedAt: latestDetectionTimestampRef.current,
+        frame: latestFrameDimensionsRef.current,
+      };
+      const image = correctCapturedCanvas(canvas, lens).then((corrected) => ({
+        blob: corrected.blob,
+        width,
+        height,
+        previewUrl: URL.createObjectURL(corrected.blob),
+        blurScore: scores.blurScore,
+        brightnessScore: scores.brightnessScore,
+        corrected: corrected.corrected,
+      }));
+
+      const deliver = (rawFaces: RawFaceLandmark[][], usedLiveMesh: boolean, detectedAt: number) => {
+        const snapshot = cloneFaces(rawFaces);
+        onCaptureRef.current({
+          width,
+          height,
+          rawFaces: snapshot,
+          faces: snapshot.map((face) => undistortLandmarks(face, { width, height }, lens)),
+          detectedAt,
+          capturedAt,
+          lens,
+          usedLiveMesh,
+          blurScore: scores.blurScore,
+          brightnessScore: scores.brightnessScore,
+          image,
+        });
+      };
+
+      if (liveMeshIsFresh({ source: "camera", live, capturedAt, captureFrame })) {
+        markCapture("face-detection-start");
+        markCapture("face-detection-end");
+        measureCapture("face-detection", "face-detection-start", "face-detection-end");
+        deliver(latestFacesRef.current, true, latestDetectionTimestampRef.current ?? capturedAt);
+        return;
+      }
+
+      setHolding("Checking the photo");
+      markCapture("face-detection-start");
+      const routed = await resolveCaptureFaces({
+        source: "camera",
+        live,
+        capturedAt,
+        captureFrame,
+        detectStill: async () => (await detectCanvas(canvas, viewRef.current)).faces,
+      });
+      markCapture("face-detection-end");
+      measureCapture("face-detection", "face-detection-start", "face-detection-end");
+      deliver(routed.faces, false, capturedAt);
     } catch (error) {
-      shooting.current = false;
       setCaptureError(error instanceof Error ? error.message : "Could not capture the photo.");
     } finally {
+      shooting.current = false;
       setHolding("");
     }
   }
 
-  function cancelCountdown() {
+  function cancelHold() {
     pauseAuto.current = true;
-    countdownRef.current = null;
-    readyStreak.current = 0;
-    setCountdown(null);
+    clockRef.current = { since: null, lastOk: null };
+    disarmHold();
   }
 
   const phaseMessage = phaseText(phase);
-  const message = holding || captureError || phaseMessage || assessment.message;
-  const mirror = view === "front";
-  const mirrorStyle = mirror ? { transform: "scaleX(-1)" } : undefined;
+  const message = holdLabel || holding || captureError || phaseMessage || assessment.message;
+  const mirrorStyle = { transform: "scaleX(-1)" };
 
   return (
     <div className="mt-5">
@@ -304,14 +447,14 @@ export function CameraCapture({
             width={frame.width}
             height={frame.height}
             view={view}
-            facing={facing.current}
+            facing={facing}
             status={assessment.status}
             live={phase === "live" ? live : null}
           />
         </div>
-        {countdown !== null && countdown > 0 ? (
+        {holdLabel ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className="font-mono text-6xl text-white">{countdown}</span>
+            <span className="bg-[#14202b]/70 px-4 py-2 font-mono text-lg text-white">{holdLabel}</span>
           </div>
         ) : null}
       </div>
@@ -323,21 +466,18 @@ export function CameraCapture({
         {assessment.checks.map((check) => (
           <li
             key={check.id}
-            className={cn(
-              "border px-2 py-1 text-xs",
-              check.ok ? "border-good text-good" : "border-line text-muted",
-            )}
+            className={cn("border px-2 py-1 text-xs", check.ok ? "border-good text-good" : "border-line text-muted")}
           >
             {check.label}
           </li>
         ))}
       </ul>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <Button className="w-full sm:w-auto" onClick={() => void takePhoto()} disabled={pending || phase !== "live" || holding !== ""}>
+        <Button className="w-full sm:w-auto" onClick={() => void takePhoto()} disabled={phase !== "live" || holding !== ""}>
           {assessment.status === "ready" ? "Capture photo" : "Capture anyway"}
         </Button>
-        {countdown !== null ? (
-          <Button variant="secondary" onClick={cancelCountdown}>
+        {holdLabel ? (
+          <Button variant="secondary" onClick={cancelHold}>
             Cancel
           </Button>
         ) : null}
@@ -357,7 +497,7 @@ function GuideGraphic({
   width: number;
   height: number;
   view: FaceView;
-  facing: "left" | "right";
+  facing: "left" | "right" | null;
   status: CaptureAssessment["status"];
   live: LiveFaceSummary | null;
 }) {
@@ -365,7 +505,6 @@ function GuideGraphic({
   const weight = Math.max(1.5, width / 480);
   const stroke = status === "ready" ? "#1d6a45" : status === "adjust" ? "#e6c27a" : "#f4f8fb";
   const tracked = status === "ready" ? "#8fd0a8" : "#d5e4ef";
-  const flip = view === "profile" && facing === "left";
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -373,13 +512,11 @@ function GuideGraphic({
       className="pointer-events-none absolute inset-0 h-full w-full [filter:drop-shadow(0_0_2px_rgba(16,24,32,0.9))]"
       aria-hidden="true"
     >
-      <g transform={flip ? `translate(${width} 0) scale(-1 1)` : undefined}>
-        {view === "front" ? (
-          <FrontGuide box={box} stroke={stroke} weight={weight} />
-        ) : (
-          <ProfileGuide box={box} stroke={stroke} weight={weight} />
-        )}
-      </g>
+      {view === "front" ? (
+        <FrontGuide box={box} stroke={stroke} weight={weight} />
+      ) : (
+        <ProfileGuide box={box} stroke={stroke} weight={weight} facing={facing} />
+      )}
       {live && live.oval.length > 2 ? (
         <polygon
           points={live.oval.map((point) => `${point.x * width},${point.y * height}`).join(" ")}
@@ -395,6 +532,16 @@ function GuideGraphic({
           y1={live.eyeLine[0].y * height}
           x2={live.eyeLine[1].x * width}
           y2={live.eyeLine[1].y * height}
+          stroke={tracked}
+          strokeWidth={weight}
+        />
+      ) : null}
+      {live?.nose && live.anchorX != null && live.anchorY != null ? (
+        <line
+          x1={live.anchorX * width}
+          y1={live.anchorY * height}
+          x2={live.nose.x * width}
+          y2={live.nose.y * height}
           stroke={tracked}
           strokeWidth={weight}
         />
@@ -422,14 +569,76 @@ function FrontGuide({ box, stroke, weight }: { box: GuideBox; stroke: string; we
   );
 }
 
-function ProfileGuide({ box, stroke, weight }: { box: GuideBox; stroke: string; weight: number }) {
-  const eyeY = box.top + box.faceH * 0.4;
+function ProfileGuide({
+  box,
+  stroke,
+  weight,
+  facing,
+}: {
+  box: GuideBox;
+  stroke: string;
+  weight: number;
+  facing: "left" | "right" | null;
+}) {
+  const eyeY = box.top + box.faceH * 0.42;
   return (
     <g fill="none" stroke={stroke} strokeWidth={weight} strokeLinecap="round">
-      <path d={brackets(box, weight * 6)} />
-      <path d={mapUnitPath(box, PROFILE_SILHOUETTE)} />
-      <line x1={box.left + box.faceW * 0.48} y1={eyeY} x2={box.left + box.faceW * 0.7} y2={eyeY} />
+      <path d={brackets(box, weight * 8)} />
+      <line
+        x1={box.left + box.faceW * 0.08}
+        y1={eyeY}
+        x2={box.left + box.faceW * 0.92}
+        y2={eyeY}
+        strokeDasharray={`${weight * 1.5} ${weight * 2.5}`}
+      />
+      <TurnCue box={box} facing={facing} weight={weight} />
     </g>
+  );
+}
+
+function TurnCue({
+  box,
+  facing,
+  weight,
+}: {
+  box: GuideBox;
+  facing: "left" | "right" | null;
+  weight: number;
+}) {
+  const y = box.top + box.faceH * 0.42;
+  const size = weight * 7;
+  if (!facing) {
+    return (
+      <g>
+        <Chevron x={box.left + box.faceW * 0.22} y={y} direction={-1} size={size} weight={weight} />
+        <Chevron x={box.left + box.faceW * 0.78} y={y} direction={1} size={size} weight={weight} />
+      </g>
+    );
+  }
+  const direction = facing === "left" ? -1 : 1;
+  const x = facing === "left" ? box.left + box.faceW * 0.2 : box.left + box.faceW * 0.8;
+  return <Chevron x={x} y={y} direction={direction} size={size} weight={weight} />;
+}
+
+function Chevron({
+  x,
+  y,
+  direction,
+  size,
+  weight,
+}: {
+  x: number;
+  y: number;
+  direction: -1 | 1;
+  size: number;
+  weight: number;
+}) {
+  return (
+    <path
+      d={`M ${x - direction * size} ${y - size * 0.7} L ${x} ${y} L ${x - direction * size} ${y + size * 0.7}`}
+      fill="none"
+      strokeWidth={weight * 1.6}
+    />
   );
 }
 
@@ -438,21 +647,13 @@ function brackets(box: GuideBox, pad: number): string {
   const top = box.top - pad;
   const right = box.left + box.faceW + pad;
   const bottom = box.top + box.faceH + pad;
-  const arm = Math.min(box.faceW, box.faceH) * 0.08;
+  const arm = Math.min(box.faceW, box.faceH) * 0.1;
   return [
     `M ${left} ${top + arm} L ${left} ${top} L ${left + arm} ${top}`,
     `M ${right - arm} ${top} L ${right} ${top} L ${right} ${top + arm}`,
     `M ${right} ${bottom - arm} L ${right} ${bottom} L ${right - arm} ${bottom}`,
     `M ${left + arm} ${bottom} L ${left} ${bottom} L ${left} ${bottom - arm}`,
   ].join(" ");
-}
-
-function mapUnitPath(box: GuideBox, path: string): string {
-  return path.replace(/(-?\d*\.?\d+) (-?\d*\.?\d+)/g, (_match, x: string, y: string) => {
-    const px = box.left + Number(x) * box.faceW;
-    const py = box.top + Number(y) * box.faceH;
-    return `${px.toFixed(1)} ${py.toFixed(1)}`;
-  });
 }
 
 function phaseText(phase: CameraPhase): string {
@@ -480,32 +681,4 @@ async function openCamera(video: MediaTrackConstraints): Promise<MediaStream> {
     }
     throw error;
   }
-}
-
-async function captureFrame(video: HTMLVideoElement, lens: LensModel): Promise<File> {
-  const maxEdge = 1600;
-  const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
-  const width = Math.max(1, Math.round(video.videoWidth * scale));
-  const height = Math.max(1, Math.round(video.videoHeight * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("This browser could not capture the camera frame.");
-  // Saved pixels stay unmirrored. The preview mirror is only for lining up,
-  // and the landmark model reads an unmirrored photograph.
-  context.drawImage(video, 0, 0, width, height);
-  const pixels = context.getImageData(0, 0, width, height);
-  const corrected = undistortRaster({ width, height, data: pixels.data }, lens);
-  const output = new Uint8ClampedArray(width * height * 4);
-  output.set(corrected.data);
-  context.putImageData(new ImageData(output, width, height), 0, 0);
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (value) => (value ? resolve(value) : reject(new Error("Could not capture the photo."))),
-      "image/jpeg",
-      0.92,
-    );
-  });
-  return new File([blob], "camera.jpg", { type: "image/jpeg" });
 }
