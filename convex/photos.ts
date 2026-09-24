@@ -1,12 +1,11 @@
 import { v } from "convex/values";
-import { emptyQuality, ownedAnalysis, requireUserId } from "./lib";
+import { emptyQuality, ownedAnalysis } from "./lib";
 import { faceView } from "./schema";
 import { mutation, query } from "./_generated/server";
 
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireUserId(ctx);
     return ctx.storage.generateUploadUrl();
   },
 });
@@ -20,9 +19,10 @@ export const save = mutation({
     width: v.number(),
     height: v.number(),
     quality: v.optional(v.any()),
+    guestId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return null;
     if (!["image/jpeg", "image/png", "image/webp"].includes(args.contentType)) {
       throw new Error("Use a JPEG, PNG, or WebP image.");
@@ -42,6 +42,7 @@ export const save = mutation({
     const id = await ctx.db.insert("photos", {
       analysisId: analysis._id,
       userId: analysis.userId,
+      guestId: analysis.guestId,
       view: args.view,
       storageId: args.storageId,
       contentType: args.contentType,
@@ -80,9 +81,10 @@ export const updateQuality = mutation({
     analysisId: v.string(),
     view: faceView,
     quality: v.any(),
+    guestId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return;
     const photos = await ctx.db
       .query("photos")
@@ -100,9 +102,9 @@ export const updateQuality = mutation({
 });
 
 export const url = query({
-  args: { analysisId: v.string(), view: faceView },
+  args: { analysisId: v.string(), view: faceView, guestId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return null;
     const photos = await ctx.db
       .query("photos")

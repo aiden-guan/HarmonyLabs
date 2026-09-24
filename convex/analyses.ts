@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { analysisDetail, deleteAnalysisTree, ownedAnalysis, requireUserId, summary } from "./lib";
 import { analysisStatus, landmarkSource, storedMetric } from "./schema";
 import { mutation, query } from "./_generated/server";
@@ -17,25 +18,26 @@ export const list = query({
 });
 
 export const get = query({
-  args: { analysisId: v.string() },
+  args: { analysisId: v.string(), guestId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return null;
     return analysisDetail(ctx, analysis);
   },
 });
 
 export const create = mutation({
-  args: { name: v.string(), isSample: v.optional(v.boolean()) },
+  args: { name: v.string(), isSample: v.optional(v.boolean()), guestId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await getAuthUserId(ctx);
+    if (!userId && !args.guestId) throw new Error("Sign in required.");
     const name = args.name.trim();
     if (!name || name.length > 80) throw new Error("Enter a shorter analysis name.");
     const now = Date.now();
     const publicId = crypto.randomUUID();
     await ctx.db.insert("analyses", {
       publicId,
-      userId,
+      ...(userId ? { userId } : { guestId: args.guestId }),
       name,
       status: "draft",
       isSample: Boolean(args.isSample),
@@ -61,10 +63,53 @@ export const create = mutation({
   },
 });
 
-export const rename = mutation({
-  args: { analysisId: v.string(), name: v.string() },
+export const claimGuest = mutation({
+  args: { guestId: v.string() },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const userId = await requireUserId(ctx);
+    const guestId = args.guestId.trim();
+    if (!guestId) return 0;
+    const analyses = await ctx.db
+      .query("analyses")
+      .withIndex("by_guest_id", (q) => q.eq("guestId", guestId))
+      .collect();
+    let count = 0;
+    for (const analysis of analyses) {
+      await ctx.db.patch(analysis._id, {
+        userId,
+        guestId: undefined,
+        updatedAt: Date.now(),
+      });
+      count++;
+      const photos = await ctx.db
+        .query("photos")
+        .withIndex("by_analysis", (q) => q.eq("analysisId", analysis._id))
+        .collect();
+      for (const photo of photos) {
+        await ctx.db.patch(photo._id, {
+          userId,
+          guestId: undefined,
+        });
+      }
+      const thread = await ctx.db
+        .query("threads")
+        .withIndex("by_analysis", (q) => q.eq("analysisId", analysis._id))
+        .unique();
+      if (thread) {
+        await ctx.db.patch(thread._id, {
+          userId,
+          guestId: undefined,
+        });
+      }
+    }
+    return count;
+  },
+});
+
+export const rename = mutation({
+  args: { analysisId: v.string(), name: v.string(), guestId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return false;
     const name = args.name.trim();
     if (!name || name.length > 80) throw new Error("Enter a name up to 80 characters.");
@@ -74,9 +119,9 @@ export const rename = mutation({
 });
 
 export const remove = mutation({
-  args: { analysisId: v.string() },
+  args: { analysisId: v.string(), guestId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return false;
     await deleteAnalysisTree(ctx, analysis._id);
     return true;
@@ -98,9 +143,10 @@ export const saveLandmarks = mutation({
       }),
     ),
     detected: v.optional(v.boolean()),
+    guestId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return false;
     const incoming = args.landmarks.map((landmark) => ({ ...landmark, view: args.view }));
     const landmarks = [...analysis.landmarks.filter((landmark) => landmark.view !== args.view), ...incoming];
@@ -136,11 +182,12 @@ export const saveResults = mutation({
     confidence: v.union(v.literal("High"), v.literal("Moderate"), v.literal("Low"), v.null()),
     errorMessage: v.union(v.string(), v.null()),
     metrics: v.array(storedMetric),
+    guestId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const analysis = await ownedAnalysis(ctx, args.analysisId);
+    const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);
     if (!analysis) return false;
-    const { analysisId: _analysisId, ...patch } = args;
+    const { analysisId: _analysisId, guestId: _guestId, ...patch } = args;
     await ctx.db.patch(analysis._id, { ...patch, updatedAt: Date.now() });
     return true;
   },

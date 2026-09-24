@@ -12,7 +12,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ analy
   const analysis = await getStore().getAnalysis(session.id, analysisId);
   if (!analysis) notFound();
   return (
-    <AppShell>
+    <AppShell user={session}>
       <AnalysisView analysis={analysis} />
     </AppShell>
   );

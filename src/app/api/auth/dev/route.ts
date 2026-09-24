@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { DEV_SESSION_COOKIE } from "@/lib/auth/constants";
+import { DEV_SESSION_COOKIE, GUEST_SESSION_COOKIE } from "@/lib/auth/constants";
 import { createDevSessionToken, devSessionCookie } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api";
 import { getStore } from "@/lib/data/store";
@@ -22,6 +22,11 @@ export async function POST(request: Request) {
   const cookie = devSessionCookie(token);
   const jar = await cookies();
   jar.set(cookie.name, cookie.value, cookie.options);
+  const guestId = jar.get(GUEST_SESSION_COOKIE)?.value;
+  if (guestId) {
+    await getStore().claimGuestAnalyses(guestId, user.id);
+    jar.delete(GUEST_SESSION_COOKIE);
+  }
   return Response.json({ ok: true });
 }
 

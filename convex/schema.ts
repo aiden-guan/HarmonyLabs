@@ -47,7 +47,8 @@ export default defineSchema({
   }).index("by_user", ["userId"]),
   analyses: defineTable({
     publicId: v.string(),
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),
+    guestId: v.optional(v.string()),
     name: v.string(),
     status: analysisStatus,
     isSample: v.boolean(),
@@ -71,10 +72,12 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_public_id", ["publicId"])
-    .index("by_user_updated", ["userId", "updatedAt"]),
+    .index("by_user_updated", ["userId", "updatedAt"])
+    .index("by_guest_id", ["guestId"]),
   photos: defineTable({
     analysisId: v.id("analyses"),
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),
+    guestId: v.optional(v.string()),
     view: faceView,
     storageId: v.id("_storage"),
     contentType: v.string(),
@@ -84,7 +87,8 @@ export default defineSchema({
   }).index("by_analysis", ["analysisId"]),
   threads: defineTable({
     analysisId: v.id("analyses"),
-    userId: v.id("users"),
+    userId: v.optional(v.id("users")),
+    guestId: v.optional(v.string()),
   }).index("by_analysis", ["analysisId"]),
   messages: defineTable({
     threadId: v.id("threads"),

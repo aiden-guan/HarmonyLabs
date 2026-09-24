@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
 import { Mark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boole
   const nextParam = params.get("next") || "/dashboard";
   const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
   const initialMessage = params.get("error") ?? "";
+  const isResultUnlock = next.startsWith("/analysis/") || params.get("reason") === "view_results";
 
   return (
     <div className="min-h-screen bg-paper flex flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
@@ -26,28 +27,63 @@ export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boole
           </Link>
         </div>
         <h1 className="mt-4 text-center text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          Sign in to MogLabs
+          {isResultUnlock ? "Your analysis is ready" : "Sign in to MogLabs"}
         </h1>
         <p className="mt-2 text-center text-xs text-muted leading-relaxed max-w-sm mx-auto">
-          Private facial geometry analytics. Detection runs in your browser, and photographs remain strictly confidential.
+          {isResultUnlock
+            ? "Sign in or create a free account to unlock your Harmony score, symmetry measurements, and report."
+            : "Private facial geometry analytics. Detection runs in your browser, and photographs remain strictly confidential."}
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        {isResultUnlock ? (
+          <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 sm:p-5 text-center space-y-2 mb-6">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-3 py-1 text-xs font-semibold text-accent">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Measurements calculated</span>
+            </div>
+            <h2 className="text-sm font-semibold tracking-tight text-ink">
+              Create an account or sign in to view results
+            </h2>
+            <p className="text-xs text-muted leading-relaxed max-w-sm mx-auto">
+              Your geometric analysis is complete. Connect your account to save your scan and unlock the full report.
+            </p>
+          </div>
+        ) : null}
+
         <Card className="border border-line bg-panel shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-sm font-semibold text-muted uppercase tracking-wider">
-              {convex ? "Account Authentication" : "Developer Access"}
+              {isResultUnlock
+                ? "Unlock Analysis Results"
+                : convex
+                ? "Account Authentication"
+                : "Developer Access"}
             </CardTitle>
             <CardDescription>
-              {convex
+              {isResultUnlock
+                ? "Sign in or create an account to view your full harmony and proportions report."
+                : convex
                 ? "Enter your credentials to access your private scans and measurements."
                 : "Local session authorization for development and testing."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {convex ? <ConvexPasswordForm next={next} initialMessage={initialMessage} /> : null}
-            {devAuth ? <DevSignIn next={next} initialMessage={initialMessage} /> : null}
+            {convex ? (
+              <ConvexPasswordForm
+                next={next}
+                initialMessage={initialMessage}
+                isResultUnlock={isResultUnlock}
+              />
+            ) : null}
+            {devAuth ? (
+              <DevSignIn
+                next={next}
+                initialMessage={initialMessage}
+                isResultUnlock={isResultUnlock}
+              />
+            ) : null}
             {!convex && !devAuth ? (
               <p className="text-sm text-signal">Convex is not configured for this deployment.</p>
             ) : null}
@@ -69,10 +105,18 @@ export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boole
   );
 }
 
-function ConvexPasswordForm({ next, initialMessage }: { next: string; initialMessage: string }) {
+function ConvexPasswordForm({
+  next,
+  initialMessage,
+  isResultUnlock = false,
+}: {
+  next: string;
+  initialMessage: string;
+  isResultUnlock?: boolean;
+}) {
   const { signIn } = useAuthActions();
   const router = useRouter();
-  const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
+  const [flow, setFlow] = useState<"signIn" | "signUp">(isResultUnlock ? "signUp" : "signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState(initialMessage);
@@ -144,7 +188,15 @@ function ConvexPasswordForm({ next, initialMessage }: { next: string; initialMes
       </Field>
 
       <Button type="submit" className="w-full mt-2" disabled={pending}>
-        {pending ? "Authenticating…" : flow === "signIn" ? "Sign in" : "Create account"}
+        {pending
+          ? "Authenticating…"
+          : flow === "signIn"
+          ? isResultUnlock
+            ? "Sign in & view results"
+            : "Sign in"
+          : isResultUnlock
+          ? "Create account & view results"
+          : "Create account"}
       </Button>
 
       {message ? (
@@ -156,7 +208,15 @@ function ConvexPasswordForm({ next, initialMessage }: { next: string; initialMes
   );
 }
 
-function DevSignIn({ next, initialMessage }: { next: string; initialMessage: string }) {
+function DevSignIn({
+  next,
+  initialMessage,
+  isResultUnlock = false,
+}: {
+  next: string;
+  initialMessage: string;
+  isResultUnlock?: boolean;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState(initialMessage);
@@ -184,7 +244,9 @@ function DevSignIn({ next, initialMessage }: { next: string; initialMessage: str
   return (
     <form onSubmit={devSignIn} className="space-y-4">
       <div className="rounded-md border border-line bg-panel-muted p-3 text-xs leading-relaxed text-muted">
-        Local development sign-in. This route bypasses cloud credentials and saves data locally under your project tree.
+        {isResultUnlock
+          ? "Enter your email below to save your scan to a local session and view your complete results."
+          : "Local development sign-in. This route bypasses cloud credentials and saves data locally under your project tree."}
       </div>
       <Field label="Email">
         <Input
@@ -197,7 +259,11 @@ function DevSignIn({ next, initialMessage }: { next: string; initialMessage: str
         />
       </Field>
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Signing in…" : "Continue"}
+        {pending
+          ? "Signing in…"
+          : isResultUnlock
+          ? "Continue to results"
+          : "Continue"}
       </Button>
       {message ? (
         <p role="alert" className="text-xs text-signal bg-signal/5 border border-signal/20 p-2.5 rounded-md leading-relaxed">

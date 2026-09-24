@@ -9,13 +9,18 @@ import { isConvexConfigured, isDevAuthEnabled } from "@/lib/env";
 
 const isProtected = createRouteMatcher(["/dashboard(.*)", "/analysis(.*)", "/settings(.*)", "/compare(.*)"]);
 const isLogin = createRouteMatcher(["/auth/login"]);
+const isGuestAllowed = (pathname: string) =>
+  pathname === "/analysis/new" ||
+  pathname === "/analysis/new/" ||
+  /^\/analysis\/[^/]+\/edit(\/)?$/.test(pathname);
 
 const convexProxy = convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
     const authed = await convexAuth.isAuthenticated();
-    if (isProtected(request) && !authed) {
+    if (isProtected(request) && !isGuestAllowed(request.nextUrl.pathname) && !authed) {
       const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-      return nextjsMiddlewareRedirect(request, `/auth/login?next=${encodeURIComponent(next)}`);
+      const reasonParam = request.nextUrl.pathname.startsWith("/analysis/") ? "&reason=view_results" : "";
+      return nextjsMiddlewareRedirect(request, `/auth/login?next=${encodeURIComponent(next)}${reasonParam}`);
     }
     if (isLogin(request) && authed) {
       return nextjsMiddlewareRedirect(request, "/dashboard");
@@ -32,10 +37,13 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
 function devProxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const signedIn = isDevAuthEnabled() && Boolean(request.cookies.get(DEV_SESSION_COOKIE)?.value);
-  const needsAuth = isProtected(request);
+  const needsAuth = isProtected(request) && !isGuestAllowed(pathname);
   if (needsAuth && !signedIn) {
     const login = new URL("/auth/login", request.url);
     login.searchParams.set("next", pathname);
+    if (pathname.startsWith("/analysis/")) {
+      login.searchParams.set("reason", "view_results");
+    }
     return NextResponse.redirect(login);
   }
   if (pathname === "/auth/login" && signedIn) {

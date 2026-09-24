@@ -1,4 +1,4 @@
-import { jsonError, requireUser } from "@/lib/api";
+import { getExistingAnalysisCaller, jsonError } from "@/lib/api";
 import { getStore } from "@/lib/data/store";
 import { assertUploadSize, landmarkInputSchema, photoQualitySchema, sniffImageType } from "@/lib/validation/analysis";
 import type { FaceView, SemanticLandmark, SemanticLandmarkKey } from "@/types/face";
@@ -12,11 +12,11 @@ const landmarksSchema = z.array(landmarkInputSchema).min(1).max(80);
 
 /**
  * One client request stores the photograph, its quality, and its landmarks.
- * Convex still uploads the file and writes the records under the signed-in account.
+ * Stores under the signed-in account or the active guest session.
  */
 export async function POST(request: Request, context: RouteContext) {
-  const user = await requireUser();
-  if (!user) return jsonError("Sign in required.", 401);
+  const caller = await getExistingAnalysisCaller();
+  if (!caller) return jsonError("Sign in required.", 401);
   const { analysisId } = await context.params;
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
@@ -54,7 +54,7 @@ export async function POST(request: Request, context: RouteContext) {
   })) as SemanticLandmark[];
 
   const store = getStore();
-  const saved = await store.savePhoto(user.id, analysisId, {
+  const saved = await store.savePhoto(caller.id, analysisId, {
     view: view as FaceView,
     bytes,
     contentType,
@@ -63,7 +63,7 @@ export async function POST(request: Request, context: RouteContext) {
     quality: quality.data,
   });
   if (!saved) return jsonError("Analysis not found.", 404);
-  const landmarksSaved = await store.saveLandmarks(user.id, analysisId, view as FaceView, landmarks, { detected });
+  const landmarksSaved = await store.saveLandmarks(caller.id, analysisId, view as FaceView, landmarks, { detected });
   if (!landmarksSaved) return jsonError("Could not save landmarks.", 404);
   return Response.json({ photo: saved, ok: true });
 }

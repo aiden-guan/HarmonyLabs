@@ -14,6 +14,10 @@ async function authed() {
   return { token };
 }
 
+function isGuest(userId: string): boolean {
+  return userId.startsWith("guest_");
+}
+
 export const convexStore = {
   async ensureProfile(_user: SessionUser, _displayName?: string | null): Promise<void> {
     await fetchMutation(api.account.ensureProfile, {}, await authed());
@@ -37,11 +41,21 @@ export const convexStore = {
     return fetchQuery(api.analyses.list, {}, await authed());
   },
 
-  async getAnalysis(_userId: string, analysisId: string) {
+  async getAnalysis(userId: string, analysisId: string) {
+    if (isGuest(userId)) {
+      return fetchQuery(api.analyses.get, { analysisId, guestId: userId });
+    }
     return fetchQuery(api.analyses.get, { analysisId }, await authed());
   },
 
-  async createAnalysis(_userId: string, input: { name: string; isSample?: boolean }) {
+  async createAnalysis(userId: string, input: { name: string; isSample?: boolean }) {
+    if (isGuest(userId)) {
+      return fetchMutation(api.analyses.create, {
+        name: input.name,
+        isSample: input.isSample,
+        guestId: userId,
+      });
+    }
     return fetchMutation(
       api.analyses.create,
       { name: input.name, isSample: input.isSample },
@@ -49,17 +63,29 @@ export const convexStore = {
     );
   },
 
-  async renameAnalysis(_userId: string, analysisId: string, name: string): Promise<void> {
+  async claimGuestAnalyses(guestId: string, _authenticatedUserId: string): Promise<number> {
+    return fetchMutation(api.analyses.claimGuest, { guestId }, await authed());
+  },
+
+  async renameAnalysis(userId: string, analysisId: string, name: string): Promise<void> {
+    if (isGuest(userId)) {
+      await fetchMutation(api.analyses.rename, { analysisId, name, guestId: userId });
+      return;
+    }
     await fetchMutation(api.analyses.rename, { analysisId, name }, await authed());
   },
 
-  async deleteAnalysis(_userId: string, analysisId: string): Promise<boolean> {
+  async deleteAnalysis(userId: string, analysisId: string): Promise<boolean> {
+    if (isGuest(userId)) {
+      return fetchMutation(api.analyses.remove, { analysisId, guestId: userId });
+    }
     return fetchMutation(api.analyses.remove, { analysisId }, await authed());
   },
 
-  async savePhoto(_userId: string, analysisId: string, input: PhotoSaveInput) {
-    const options = await authed();
-    const uploadUrl = await fetchMutation(api.photos.generateUploadUrl, {}, options);
+  async savePhoto(userId: string, analysisId: string, input: PhotoSaveInput) {
+    const uploadUrl = isGuest(userId)
+      ? await fetchMutation(api.photos.generateUploadUrl, {})
+      : await fetchMutation(api.photos.generateUploadUrl, {}, await authed());
     const uploaded = await fetch(uploadUrl, {
       method: "POST",
       headers: { "Content-Type": input.contentType },
@@ -68,6 +94,18 @@ export const convexStore = {
     if (!uploaded.ok) return null;
     const body = (await uploaded.json()) as { storageId?: string };
     if (!body.storageId) return null;
+    if (isGuest(userId)) {
+      return fetchMutation(api.photos.save, {
+        analysisId,
+        storageId: body.storageId as Id<"_storage">,
+        view: input.view,
+        contentType: input.contentType,
+        width: input.width,
+        height: input.height,
+        quality: input.quality,
+        guestId: userId,
+      });
+    }
     return fetchMutation(
       api.photos.save,
       {
@@ -79,17 +117,23 @@ export const convexStore = {
         height: input.height,
         quality: input.quality,
       },
-      options,
+      await authed(),
     );
   },
 
-  async updatePhotoQuality(_userId: string, analysisId: string, view: FaceView, quality: PhotoQuality) {
+  async updatePhotoQuality(userId: string, analysisId: string, view: FaceView, quality: PhotoQuality) {
     if (!quality) return;
+    if (isGuest(userId)) {
+      await fetchMutation(api.photos.updateQuality, { analysisId, view, quality, guestId: userId });
+      return;
+    }
     await fetchMutation(api.photos.updateQuality, { analysisId, view, quality }, await authed());
   },
 
-  async readPhoto(_userId: string, analysisId: string, view: FaceView) {
-    const photo = await fetchQuery(api.photos.url, { analysisId, view }, await authed());
+  async readPhoto(userId: string, analysisId: string, view: FaceView) {
+    const photo = isGuest(userId)
+      ? await fetchQuery(api.photos.url, { analysisId, view, guestId: userId })
+      : await fetchQuery(api.photos.url, { analysisId, view }, await authed());
     if (!photo) return null;
     const response = await fetch(photo.url);
     if (!response.ok) return null;
@@ -100,12 +144,21 @@ export const convexStore = {
   },
 
   async saveLandmarks(
-    _userId: string,
+    userId: string,
     analysisId: string,
     view: FaceView,
     landmarks: SemanticLandmark[],
     options: { detected?: boolean },
   ): Promise<boolean> {
+    if (isGuest(userId)) {
+      return fetchMutation(api.analyses.saveLandmarks, {
+        analysisId,
+        view,
+        landmarks,
+        detected: options.detected,
+        guestId: userId,
+      });
+    }
     return fetchMutation(
       api.analyses.saveLandmarks,
       { analysisId, view, landmarks, detected: options.detected },
@@ -113,7 +166,15 @@ export const convexStore = {
     );
   },
 
-  async saveResults(_userId: string, analysisId: string, input: ResultSaveInput): Promise<boolean> {
+  async saveResults(userId: string, analysisId: string, input: ResultSaveInput): Promise<boolean> {
+    if (isGuest(userId)) {
+      return fetchMutation(api.analyses.saveResults, {
+        analysisId,
+        ...input,
+        errorMessage: input.errorMessage ?? null,
+        guestId: userId,
+      });
+    }
     return fetchMutation(api.analyses.saveResults, { analysisId, ...input, errorMessage: input.errorMessage ?? null }, await authed());
   },
 

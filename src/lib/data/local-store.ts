@@ -290,6 +290,50 @@ export const localStore = {
     });
   },
 
+  async claimGuestAnalyses(guestId: string, authenticatedUserId: string): Promise<number> {
+    if (
+      guestId.includes("/") ||
+      guestId.includes("\\") ||
+      authenticatedUserId.includes("/") ||
+      authenticatedUserId.includes("\\")
+    ) {
+      return 0;
+    }
+    return locked(async (db) => {
+      let count = 0;
+      for (const analysis of db.analyses) {
+        if (analysis.userId === guestId) {
+          analysis.userId = authenticatedUserId;
+          analysis.updatedAt = new Date().toISOString();
+          count++;
+
+          const oldDir = path.join(dataDir(), "photos", guestId, analysis.id);
+          const newDir = path.join(dataDir(), "photos", authenticatedUserId, analysis.id);
+          try {
+            await mkdir(path.dirname(newDir), { recursive: true });
+            await rename(oldDir, newDir);
+          } catch {
+            // Ignore if directory does not exist
+          }
+
+          for (const photo of db.photos) {
+            if (photo.analysisId === analysis.id) {
+              photo.userId = authenticatedUserId;
+              const fileName = path.basename(photo.storagePath);
+              photo.storagePath = `${authenticatedUserId}/${analysis.id}/${fileName}`;
+            }
+          }
+        }
+      }
+      for (const thread of db.threads) {
+        if (thread.userId === guestId) {
+          thread.userId = authenticatedUserId;
+        }
+      }
+      return count;
+    });
+  },
+
   async renameAnalysis(userId: string, analysisId: string, name: string): Promise<void> {
     await locked(async (db) => {
       const analysis = owned(db, userId, analysisId);

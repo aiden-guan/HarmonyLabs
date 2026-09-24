@@ -34,7 +34,7 @@ export default function HomePage() {
             <Link href="/auth/login" className="text-sm font-medium text-muted hover:text-ink transition-colors px-2 py-1">
               Sign in
             </Link>
-            <Link href="/auth/login?next=/analysis/new">
+            <Link href="/analysis/new">
               <Button size="sm" className="shadow-xs">
                 Analyze face
               </Button>
@@ -66,7 +66,7 @@ export default function HomePage() {
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <Link href="/auth/login?next=/analysis/new">
+                  <Link href="/analysis/new">
                     <Button size="lg" className="gap-2 shadow-sm text-base">
                       <span>Analyze face</span>
                       <ArrowRight className="h-4 w-4" />
@@ -176,7 +176,7 @@ export default function HomePage() {
                   See how results are presented: hierarchical scoring, category breakdowns, and transparent metric deviations.
                 </p>
               </div>
-              <Link href="/auth/login?next=/analysis/new">
+              <Link href="/analysis/new">
                 <Button variant="secondary" className="gap-2">
                   <span>Start your own analysis</span>
                   <ArrowRight className="h-4 w-4" />
@@ -339,12 +339,12 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className="pt-4 flex flex-wrap gap-4 items-center">
-                  <Link href="/auth/login?next=/analysis/new">
+                  <Link href="/analysis/new">
                     <Button variant="secondary" className="bg-white text-slate-900 hover:bg-slate-100 border-none font-semibold">
                       Start private analysis
                     </Button>
                   </Link>
-                  <span className="text-xs text-slate-400">No credit card or public profile required</span>
+                  <span className="text-xs text-slate-400">Free to start · No account required until results</span>
                 </div>
               </div>
             </div>

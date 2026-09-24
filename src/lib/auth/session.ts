@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../convex/_generated/api";
-import { DEV_SESSION_COOKIE } from "@/lib/auth/constants";
+import { DEV_SESSION_COOKIE, GUEST_SESSION_COOKIE } from "@/lib/auth/constants";
 import { isConvexConfigured, isDevAuthEnabled } from "@/lib/env";
 
 const COOKIE = DEV_SESSION_COOKIE;
@@ -85,3 +85,32 @@ export function devSessionCookie(token: string) {
     },
   };
 }
+
+export async function getGuestId(): Promise<string | null> {
+  const jar = await cookies();
+  const val = jar.get(GUEST_SESSION_COOKIE)?.value;
+  return val && val.startsWith("guest_") ? val : null;
+}
+
+export async function getOrCreateGuestId(): Promise<string> {
+  const jar = await cookies();
+  const existing = jar.get(GUEST_SESSION_COOKIE)?.value;
+  if (existing && existing.startsWith("guest_")) {
+    return existing;
+  }
+  const nextId = `guest_${crypto.randomUUID()}`;
+  jar.set(GUEST_SESSION_COOKIE, nextId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
+  return nextId;
+}
+
+export async function clearGuestId(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(GUEST_SESSION_COOKIE);
+}
+

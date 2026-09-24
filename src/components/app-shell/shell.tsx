@@ -10,6 +10,7 @@ import {
   Plus,
   Settings,
   LogOut,
+  LogIn,
   Menu,
   X,
   ScanFace,
@@ -18,16 +19,23 @@ import { Mark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/analysis/new", label: "Analyze", icon: ScanFace },
-  { href: "/compare", label: "Compare", icon: GitCompare },
-];
-
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user?: { id: string; email: string } | null;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const isGuest = user === null;
+  const navItems = [
+    ...(isGuest ? [] : [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }]),
+    { href: "/analysis/new", label: "Analyze", icon: ScanFace },
+    { href: "/compare", label: "Compare", icon: GitCompare },
+  ];
 
   async function signOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -50,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Left: Brand + Desktop Nav */}
           <div className="flex items-center gap-8">
             <Link
-              href="/dashboard"
+              href={isGuest ? "/" : "/dashboard"}
               className="flex items-center gap-2.5 font-semibold tracking-tight text-ink transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent"
             >
               <Mark className="h-6 w-6 text-accent" />
@@ -96,27 +104,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <div className="h-4 w-px bg-line mx-1" aria-hidden="true" />
 
-            <Link
-              href="/settings"
-              title="Settings"
-              aria-label="Settings"
-              className={cn(
-                "rounded-md p-2 text-muted transition-colors hover:bg-slate-100 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
-                pathname === "/settings" ? "bg-slate-100 text-accent font-semibold" : "",
-              )}
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
+            {isGuest ? (
+              <Link href="/auth/login">
+                <Button variant="secondary" size="sm">
+                  Sign in
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/settings"
+                  title="Settings"
+                  aria-label="Settings"
+                  className={cn(
+                    "rounded-md p-2 text-muted transition-colors hover:bg-slate-100 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
+                    pathname === "/settings" ? "bg-slate-100 text-accent font-semibold" : "",
+                  )}
+                >
+                  <Settings className="h-4 w-4" />
+                </Link>
 
-            <button
-              type="button"
-              onClick={signOut}
-              title="Sign out"
-              aria-label="Sign out"
-              className="rounded-md p-2 text-muted transition-colors hover:bg-slate-100 hover:text-signal focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  title="Sign out"
+                  aria-label="Sign out"
+                  className="rounded-md p-2 text-muted transition-colors hover:bg-slate-100 hover:text-signal focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </div>
 
           {/* Mobile Right Controls */}
@@ -178,28 +196,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
                 <div className="my-1.5 border-t border-line/60" />
 
-                <Link
-                  href="/settings"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    pathname === "/settings"
-                      ? "bg-slate-100 text-accent font-semibold"
-                      : "text-muted hover:bg-slate-50 hover:text-ink",
-                  )}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Settings</span>
-                </Link>
+                {isGuest ? (
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-muted hover:bg-slate-50 hover:text-ink transition-colors"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Sign in</span>
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/settings"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                        pathname === "/settings"
+                          ? "bg-slate-100 text-accent font-semibold"
+                          : "text-muted hover:bg-slate-50 hover:text-ink",
+                      )}
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
 
-                <button
-                  type="button"
-                  onClick={signOut}
-                  className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-muted hover:bg-slate-50 hover:text-signal transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign out</span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={signOut}
+                      className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-muted hover:bg-slate-50 hover:text-signal transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Sign out</span>
+                    </button>
+                  </>
+                )}
               </nav>
             </motion.div>
           ) : null}

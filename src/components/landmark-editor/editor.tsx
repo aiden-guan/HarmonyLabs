@@ -25,7 +25,13 @@ function group(analysis: AnalysisDetail): Record<FaceView, SemanticLandmark[]> {
   return { front: from("front"), profile: from("profile") };
 }
 
-export function LandmarkEditor({ analysis }: { analysis: AnalysisDetail }) {
+export function LandmarkEditor({
+  analysis,
+  isGuest = false,
+}: {
+  analysis: AnalysisDetail;
+  isGuest?: boolean;
+}) {
   const router = useRouter();
   const initial = useMemo(() => group(analysis), [analysis]);
   const baseline = useMemo(
@@ -141,8 +147,12 @@ export function LandmarkEditor({ analysis }: { analysis: AnalysisDetail }) {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not calculate measurements.");
-      router.push(`/analysis/${analysis.id}`);
-      router.refresh();
+      if (body.requiresAuth || isGuest) {
+        router.push(`/auth/login?next=${encodeURIComponent(`/analysis/${analysis.id}`)}&reason=view_results`);
+      } else {
+        router.push(`/analysis/${analysis.id}`);
+        router.refresh();
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not continue.");
       setPending(false);

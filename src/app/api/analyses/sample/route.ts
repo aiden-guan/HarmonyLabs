@@ -1,4 +1,4 @@
-import { jsonError, requireUser } from "@/lib/api";
+import { getAnalysisCaller, jsonError } from "@/lib/api";
 import { getStore } from "@/lib/data/store";
 import { sampleLandmarks } from "@/fixtures/sample-face";
 import { renderSamplePortrait } from "@/lib/face/synthetic-portrait";
@@ -7,16 +7,15 @@ import type { FaceView, PhotoQuality } from "@/types/face";
 export const runtime = "nodejs";
 
 export async function POST() {
-  const user = await requireUser();
-  if (!user) return jsonError("Sign in required.", 401);
+  const caller = await getAnalysisCaller();
   const store = getStore();
-  const analysis = await store.createAnalysis(user.id, {
+  const analysis = await store.createAnalysis(caller.id, {
     name: "Geometric sample",
     isSample: true,
   });
   for (const view of ["front", "profile"] as FaceView[]) {
     const portrait = renderSamplePortrait(view);
-    const saved = await store.savePhoto(user.id, analysis.id, {
+    const saved = await store.savePhoto(caller.id, analysis.id, {
       view,
       bytes: portrait.bytes,
       contentType: "image/png",
@@ -25,7 +24,7 @@ export async function POST() {
       quality: sampleQuality(view),
     });
     if (!saved) return jsonError("Could not store the sample image.", 500);
-    const landmarksSaved = await store.saveLandmarks(user.id, analysis.id, view, sampleLandmarks(view), {
+    const landmarksSaved = await store.saveLandmarks(caller.id, analysis.id, view, sampleLandmarks(view), {
       detected: true,
     });
     if (!landmarksSaved) return jsonError("Could not store sample landmarks.", 500);

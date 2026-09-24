@@ -37,7 +37,7 @@ yarn-error.log*
 
 # local development database and private photos
 .data
-.data-e2e
+.data*
 
 # playwright
 /test-results

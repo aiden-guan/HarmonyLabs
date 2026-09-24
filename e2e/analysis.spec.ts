@@ -80,3 +80,49 @@ test("sign in, upload, adjust a landmark, read report, and export shareable card
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Share results" })).not.toBeVisible();
 });
+
+test("guest can do analysis for free, is required to sign in before viewing results, and views results after sign in", async ({ page }) => {
+  // Start on homepage without signing in
+  await page.goto("/");
+  await page.getByRole("link", { name: "Analyze face" }).first().click();
+  await expect(page).toHaveURL(/\/analysis\/new/);
+  await expect(page.locator("#content").getByText("New analysis")).toBeVisible();
+
+  // Setup step
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  // Front photograph
+  await page.getByRole("button", { name: "Upload photo" }).click();
+  await page.getByLabel("Front photograph").setInputFiles(path.join(fixtureDir, "front.png"));
+  await expect(page.getByRole("heading", { name: "Three-quarter photograph" })).toBeVisible();
+
+  // Three-quarter photograph
+  await page.getByRole("button", { name: "Upload photo" }).click();
+  await page.getByLabel("Three-quarter photograph").setInputFiles(path.join(fixtureDir, "profile.png"));
+  await expect(page.getByRole("heading", { name: "Side photograph" })).toBeVisible();
+
+  // Side photograph
+  await page.getByRole("button", { name: "Upload photo" }).click();
+  await page.getByLabel("Side photograph").setInputFiles(path.join(fixtureDir, "profile.png"));
+  await expect(page.getByRole("heading", { name: "Photo check" })).toBeVisible();
+
+  // Review landmarks
+  await page.getByRole("button", { name: "Review landmarks" }).click();
+  await expect(page).toHaveURL(/\/analysis\/.*\/edit/);
+  await page.getByRole("button", { name: "Continue to profile" }).click();
+
+  // Calculate measurements as guest -> should require sign in before viewing results
+  await page.getByRole("button", { name: "Calculate measurements" }).click();
+  await expect(page).toHaveURL(/\/auth\/login\?next=.*&reason=view_results/);
+  await expect(page.getByText("Create an account or sign in to view results")).toBeVisible();
+
+  // Sign in / create account
+  await page.getByLabel("Email").fill(`free-guest-${Date.now()}@moglabs.test`);
+  await page.getByRole("button", { name: "Continue to results" }).click();
+
+  // User is redirected to results page with claimed analysis
+  await expect(page).toHaveURL(/\/analysis\/[a-f0-9-]+$/);
+  await expect(page.getByText("Proportional harmony")).toBeVisible();
+  await expect(page.getByText("Geometric reference score, not attractiveness.")).toBeVisible();
+});
+

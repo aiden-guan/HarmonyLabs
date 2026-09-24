@@ -36,3 +36,45 @@ test("one account cannot read another account's analysis or photo", async () => 
   const owned = await localStore.readPhoto(alice.id, analysis.id, "front");
   expect(Array.from(owned?.bytes ?? [])).toEqual([1, 2, 3, 4]);
 });
+
+test("guest analysis can be created and is claimed upon account sign-in", async () => {
+  const { localStore } = await import("@/lib/data/local-store");
+  const guestId = "guest_test_12345";
+  const user: SessionUser = { id: "charlie-user", email: "charlie@example.com" };
+  await localStore.ensureProfile(user);
+
+  // Guest creates analysis and saves a photo
+  const analysis = await localStore.createAnalysis(guestId, { name: "Guest analysis" });
+  await localStore.savePhoto(guestId, analysis.id, {
+    view: "front",
+    bytes: Uint8Array.from([10, 20, 30, 40]),
+    contentType: "image/jpeg",
+    width: 100,
+    height: 100,
+  });
+
+  // Charlie cannot read it yet
+  expect(await localStore.getAnalysis(user.id, analysis.id)).toBeNull();
+  expect(await localStore.readPhoto(user.id, analysis.id, "front")).toBeNull();
+
+  // Guest can read it while in guest session
+  expect(await localStore.getAnalysis(guestId, analysis.id)).not.toBeNull();
+  const guestPhoto = await localStore.readPhoto(guestId, analysis.id, "front");
+  expect(Array.from(guestPhoto?.bytes ?? [])).toEqual([10, 20, 30, 40]);
+
+  // Charlie signs in / claims guest analysis
+  const claimedCount = await localStore.claimGuestAnalyses(guestId, user.id);
+  expect(claimedCount).toBe(1);
+
+  // Charlie now owns it!
+  const claimedAnalysis = await localStore.getAnalysis(user.id, analysis.id);
+  expect(claimedAnalysis).not.toBeNull();
+  expect(claimedAnalysis?.name).toBe("Guest analysis");
+  const claimedPhoto = await localStore.readPhoto(user.id, analysis.id, "front");
+  expect(Array.from(claimedPhoto?.bytes ?? [])).toEqual([10, 20, 30, 40]);
+
+  // Guest id can no longer access it
+  expect(await localStore.getAnalysis(guestId, analysis.id)).toBeNull();
+  expect(await localStore.readPhoto(guestId, analysis.id, "front")).toBeNull();
+});
+

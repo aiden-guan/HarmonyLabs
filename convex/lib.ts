@@ -10,14 +10,16 @@ export async function requireUserId(ctx: ReadCtx) {
   return userId;
 }
 
-export async function ownedAnalysis(ctx: ReadCtx, publicId: string) {
-  const userId = await requireUserId(ctx);
+export async function ownedAnalysis(ctx: ReadCtx, publicId: string, guestId?: string) {
+  const userId = await getAuthUserId(ctx);
   const analysis = await ctx.db
     .query("analyses")
     .withIndex("by_public_id", (q) => q.eq("publicId", publicId))
     .unique();
-  if (!analysis || analysis.userId !== userId) return null;
-  return analysis;
+  if (!analysis) return null;
+  if (userId && analysis.userId === userId) return analysis;
+  if (guestId && analysis.guestId === guestId) return analysis;
+  return null;
 }
 
 export function iso(ms: number) {

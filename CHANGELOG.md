@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-09-23 — Guest analysis & result unlock flow
+
+### Summary
+Allow users to complete the entire facial geometry analysis wizard and landmark review for free without signing in, gating only the final report behind account creation or sign-in, and automatically claiming guest analyses upon authentication.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Guest session & caller abstraction** | Anonymous guest cookie (`facelab_guest_id`) and unified `getAnalysisCaller` | Enables full capture and landmark editing without authentication friction or database schema violations |
+| **Results gating** | Gated `/analysis/[analysisId]` and landmark completion handoff with `reason=view_results` | Prompts account creation at maximum intent (when measurements are computed) instead of bouncing visitors upfront |
+| **Automated analysis claiming** | `claimGuestAnalyses` in local store and Convex (`claimGuest` mutation) | Seamlessly transfers analyses, photos on disk/storage, and threads to authenticated accounts upon sign-in |
+| **Middleware routing** | Selective route allowance in `src/proxy.ts` | Allows guest access to `/analysis/new` and `/analysis/[id]/edit` while strictly protecting report and account surfaces |
+
+### Detailed Changes
+
+#### Added
+- **Session & Identity**:
+  - `GUEST_SESSION_COOKIE = "facelab_guest_id"` constant in `src/lib/auth/constants.ts`.
+  - `getGuestId()`, `getOrCreateGuestId()`, and `clearGuestId()` cookie helpers in `src/lib/auth/session.ts`.
+  - `getAnalysisCaller()` and `getExistingAnalysisCaller()` in `src/lib/api.ts`.
+- **Database & Storage Migration**:
+  - Convex `guestId` string field and `by_guest_id` index on `analyses`, `photos`, and `threads`.
+  - `claimGuest` mutation in `convex/analyses.ts` and guest caller support in `convex/photos.ts`.
+  - `claimGuestAnalyses` in `src/lib/data/local-store.ts` with atomic directory moves, photo record updates, and thread association.
+  - Unit tests in `src/lib/data/local-store.test.ts` verifying guest analysis migration and photo storage relocation.
+- **UI & UX**:
+  - Dedicated "Unlock Analysis Results" banner, dynamic headings, and sign-up default flow in `src/components/auth/login-form.tsx`.
+  - Guest detection in `src/components/app-shell/shell.tsx` showing "Sign in" actions instead of user settings/sign out.
+- **Verification**:
+  - Playwright E2E test in `e2e/analysis.spec.ts` testing guest capture, landmark adjustments, auth unlock redirect, dev sign-in, and result claiming.
+
+#### Changed / Refactored
+- **`src/proxy.ts`**: Configured guest route exceptions for `/analysis/new` and `/analysis/[id]/edit`; appends `&reason=view_results` for protected analysis routes.
+- **`src/app/page.tsx`**: Updated hero and feature CTAs to link directly to `/analysis/new`.
+- **`src/components/landmark-editor/editor.tsx`**: Hand-off button redirects guests to auth unlock URL upon measurement computation.
+- **`playwright.config.ts`**: Configured `workers: 1` to prevent database concurrency race conditions on local-store test runs.
+
+### Verification Proof
+- `pnpm typecheck` — 0 TypeScript errors.
+- `pnpm test` — 92 unit and component tests passed across 21 test suites.
+- `pnpm test:e2e` — 11 Playwright tests passed end-to-end.
+- `pnpm build` — Clean Next.js 16 production build.
+- `convex deploy` — Convex schema and functions deployed to production (`https://quixotic-hornet-741.convex.cloud`).
+
 ## 2026-09-23 — Capture pipeline
 
 ### Summary
