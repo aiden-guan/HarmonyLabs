@@ -1,6 +1,6 @@
 import type { FaceView, PhotoQuality, RawFaceLandmark } from "@/types/face";
 import { MP } from "@/lib/face/mediapipe-map";
-import { classifyProfilePose, isTrueSidePose } from "@/lib/face/profile-pose";
+import { classifyCapturePose, type HeadOrientation } from "@/lib/face/profile-pose";
 
 export interface PoseEstimate {
   yaw: number | null;
@@ -165,6 +165,11 @@ export function evaluatePhotoQuality(input: {
   facialHeight?: number | null;
   /** Degrees the ear-to-eyelid line sits off horizontal, when it was not leveled. */
   frankfortTilt?: number | null;
+  /**
+   * Live capture passes the same orientation the camera accepted.
+   * Without it, pose is classified from the geometric yaw fallback.
+   */
+  orientation?: HeadOrientation | null;
 }): { quality: PhotoQuality; hardError: string | null } {
   const warnings: string[] = [];
   const { yaw, pitch, roll } = input.pose;
@@ -219,27 +224,51 @@ export function evaluatePhotoQuality(input: {
     warnings.push("The face is extremely close to the camera. Perspective can distort proportions.");
   }
 
-  if (input.view === "front" && yaw !== null) {
-    if (Math.abs(yaw) > 38) {
-      hardError =
-        hardError ??
-        `This front photo is turned about ${roundDegrees(yaw)}. Use a photo facing the camera.`;
-    } else if (Math.abs(yaw) > 18) {
-      warnings.push(
-        `The front photo is turned about ${roundDegrees(yaw)}. Frontal measurements assume a near-straight view.`,
-      );
+  const orientation: HeadOrientation = input.orientation ?? {
+    yaw,
+    pitch,
+    roll,
+    source: "geometry",
+  };
+
+  if (input.view === "front") {
+    if (orientation.source === "matrix" && orientation.yaw !== null) {
+      const abs = Math.abs(orientation.yaw);
+      if (abs > 32) {
+        hardError =
+          hardError ??
+          `This front photo is turned about ${roundDegrees(orientation.yaw)}. Use a photo facing the camera.`;
+      } else if (abs > 18) {
+        warnings.push(
+          `The front photo is turned about ${roundDegrees(orientation.yaw)}. Frontal measurements assume a near-straight view.`,
+        );
+      }
+    } else if (yaw !== null) {
+      if (Math.abs(yaw) > 38) {
+        hardError =
+          hardError ??
+          `This front photo is turned about ${roundDegrees(yaw)}. Use a photo facing the camera.`;
+      } else if (Math.abs(yaw) > 18) {
+        warnings.push(
+          `The front photo is turned about ${roundDegrees(yaw)}. Frontal measurements assume a near-straight view.`,
+        );
+      }
     }
   }
 
   if (input.view === "profile") {
     const cue = input.profileCue ?? { eyeCollapse: null, noseLead: null };
-    const pose = classifyProfilePose(yaw, cue);
-    if (!isTrueSidePose(yaw, cue)) {
+    const reading = classifyCapturePose(orientation, cue, true);
+    if (!reading.side) {
       hardError =
         hardError ??
-        (pose === "lateral" || pose === "nearlyLateral"
-          ? "This is still a three-quarter view. Turn your head 90° until the far eyebrow is hidden."
-          : "This is not a side view yet. Turn your head 90° until the far eyebrow is hidden and look straight ahead.");
+        (reading.threeQuarter
+          ? "This is still a three-quarter view. Keep turning until you are fully sideways."
+          : "This is not a side view yet. Turn until you are fully sideways.");
+    } else if (reading.sideBorderline) {
+      warnings.push(
+        "The head is a little short of a full side profile. Measurements from this photo are less certain.",
+      );
     }
     if (input.frankfortTilt != null && Math.abs(input.frankfortTilt) > 15) {
       warnings.push(

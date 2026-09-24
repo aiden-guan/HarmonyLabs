@@ -1,3 +1,4 @@
+import type { FacialMatrix } from "@/lib/face/facial-transform";
 import type { RawFaceLandmark } from "@/types/face";
 
 export interface DetectorWorker {
@@ -12,11 +13,17 @@ interface DetectResponse {
   id: number;
   ok: boolean;
   faces?: RawFaceLandmark[][];
+  transforms?: FacialMatrix[];
   error?: string;
 }
 
+export interface StillDetection {
+  faces: RawFaceLandmark[][];
+  transforms: FacialMatrix[];
+}
+
 export interface StillDetectorClient {
-  detect: (bitmap: { close?: () => void }) => Promise<{ faces: RawFaceLandmark[][] }>;
+  detect: (bitmap: { close?: () => void }) => Promise<StillDetection>;
   prewarm: () => void;
   terminate: () => void;
   readonly workerCount: number;
@@ -36,7 +43,7 @@ export function createStillDetectorClient(options: {
   let nextId = 0;
   const pending = new Map<
     number,
-    { resolve: (faces: RawFaceLandmark[][]) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+    { resolve: (detection: StillDetection) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
   >();
 
   function failAll(error: Error) {
@@ -71,7 +78,7 @@ export function createStillDetectorClient(options: {
         request.reject(new Error(data.error ?? "Face detection failed"));
         return;
       }
-      request.resolve(data.faces);
+      request.resolve({ faces: data.faces, transforms: data.transforms ?? [] });
     };
     created.onerror = () => {
       failAll(new Error("The face landmarker worker failed."));
@@ -92,7 +99,7 @@ export function createStillDetectorClient(options: {
     detect(bitmap) {
       const current = ensureWorker();
       const id = ++nextId;
-      return new Promise<{ faces: RawFaceLandmark[][] }>((resolve, reject) => {
+      return new Promise<StillDetection>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(id);
           failAll(new Error("Face detection timed out."));
@@ -100,7 +107,7 @@ export function createStillDetectorClient(options: {
           reject(new Error("Face detection timed out."));
         }, timeoutMs);
         pending.set(id, {
-          resolve: (faces) => resolve({ faces }),
+          resolve,
           reject,
           timer,
         });

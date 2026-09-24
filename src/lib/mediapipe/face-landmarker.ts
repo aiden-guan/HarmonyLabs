@@ -1,4 +1,5 @@
 import type { FaceView, RawFaceLandmark } from "@/types/face";
+import { facialMatricesFromVision, type FacialMatrix } from "@/lib/face/facial-transform";
 import {
   createStillDetectorClient,
   type DetectorWorker,
@@ -8,11 +9,24 @@ import { createSessionLease } from "@/lib/mediapipe/session-lease";
 
 export interface RawDetection {
   faces: RawFaceLandmark[][];
+  transforms: FacialMatrix[];
+}
+
+export interface LiveFaceDetection {
+  faces: RawFaceLandmark[][];
+  transforms: FacialMatrix[];
+}
+
+interface VisionMatrix {
+  rows?: number;
+  columns?: number;
+  data?: ArrayLike<number>;
 }
 
 type FaceDetector = {
   detect: (image: ImageBitmap | HTMLCanvasElement) => {
     faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
+    facialTransformationMatrixes?: VisionMatrix[];
   };
   close: () => void;
 };
@@ -59,16 +73,7 @@ function loadLandmarker(): Promise<FaceDetector> {
 export async function detectWithMediaPipe(image: ImageBitmap | HTMLCanvasElement): Promise<RawDetection> {
   const landmarker = await loadLandmarker();
   const result = landmarker.detect(image);
-  return {
-    faces: result.faceLandmarks.map((face) =>
-      face.map((point) => ({
-        x: point.x,
-        y: point.y,
-        z: point.z ?? 0,
-        visibility: point.visibility,
-      })),
-    ),
-  };
+  return mapDetection(result);
 }
 
 export async function disposeFaceLandmarker(): Promise<void> {
@@ -84,6 +89,7 @@ type LiveLandmarker = {
     timestamp: number,
   ) => {
     faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
+    facialTransformationMatrixes?: VisionMatrix[];
   };
   close: () => void;
 };
@@ -131,7 +137,7 @@ function loadLiveLandmarker(): Promise<LiveLandmarker> {
       numFaces: 2,
       minFaceDetectionConfidence: 0.5,
       outputFaceBlendshapes: false,
-      outputFacialTransformationMatrixes: false,
+      outputFacialTransformationMatrixes: true,
     };
     try {
       return (await vision.FaceLandmarker.createFromOptions(files, {
@@ -181,18 +187,27 @@ export function retainLiveFaceLandmarker(): () => void {
   };
 }
 
-export async function detectLiveFace(video: HTMLVideoElement, now: number): Promise<RawFaceLandmark[][]> {
+export async function detectLiveFace(video: HTMLVideoElement, now: number): Promise<LiveFaceDetection> {
   const landmarker = await loadLiveLandmarker();
   liveTimestamp = Math.max(liveTimestamp + 1, Math.round(now));
-  const result = landmarker.detectForVideo(video, liveTimestamp);
-  return result.faceLandmarks.map((face) =>
-    face.map((point) => ({
-      x: point.x,
-      y: point.y,
-      z: point.z ?? 0,
-      visibility: point.visibility,
-    })),
-  );
+  return mapDetection(landmarker.detectForVideo(video, liveTimestamp));
+}
+
+function mapDetection(result: {
+  faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
+  facialTransformationMatrixes?: VisionMatrix[];
+}): RawDetection {
+  return {
+    faces: result.faceLandmarks.map((face) =>
+      face.map((point) => ({
+        x: point.x,
+        y: point.y,
+        z: point.z ?? 0,
+        visibility: point.visibility,
+      })),
+    ),
+    transforms: facialMatricesFromVision(result.facialTransformationMatrixes),
+  };
 }
 
 let stillClient: StillDetectorClient | null = null;
@@ -220,7 +235,7 @@ export function disposeStillDetector(): void {
 
 async function fixtureDetection(view: FaceView): Promise<RawDetection> {
   const fixture = await import("@/fixtures/raw-sample");
-  return { faces: [fixture.rawSample(view)] };
+  return { faces: [fixture.rawSample(view)], transforms: [] };
 }
 
 function e2eDetector(): boolean {

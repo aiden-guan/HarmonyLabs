@@ -15,6 +15,7 @@ type Inbound =
 interface StillLandmarker {
   detect: (image: ImageBitmap) => {
     faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
+    facialTransformationMatrixes?: Array<{ rows?: number; columns?: number; data?: ArrayLike<number> }>;
   };
   close?: () => void;
 }
@@ -33,7 +34,7 @@ function load(): Promise<StillLandmarker> {
         runningMode: "IMAGE",
         numFaces: 3,
         outputFaceBlendshapes: false,
-        outputFacialTransformationMatrixes: false,
+        outputFacialTransformationMatrixes: true,
       })) as StillLandmarker;
       landmarker = created;
       return created;
@@ -88,6 +89,11 @@ scope.onmessage = (event: MessageEvent<Inbound>) => {
             visibility: point.visibility,
           })),
         ),
+        transforms: (result.facialTransformationMatrixes ?? []).map((matrix) => ({
+          rows: matrix.rows ?? 0,
+          columns: matrix.columns ?? 0,
+          data: Array.from(matrix.data ?? [], (value) => Number(value)),
+        })),
       });
     })
     .catch((error: unknown) => {

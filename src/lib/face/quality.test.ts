@@ -7,7 +7,6 @@ import {
   profileFacesLeft,
   profileShapeCue,
 } from "@/lib/face/quality";
-import { classifyProfilePose } from "@/lib/face/profile-pose";
 import { MP } from "@/lib/face/mediapipe-map";
 import type { RawFaceLandmark } from "@/types/face";
 
@@ -100,7 +99,7 @@ describe("photo quality", () => {
       mirrored: false,
       profileCue: { eyeCollapse: 0.48, noseLead: 0.06 },
     });
-    expect(threeQuarter.hardError).toMatch(/side view/);
+    expect(threeQuarter.hardError).toMatch(/three-quarter/);
 
     const tilted = evaluatePhotoQuality({
       view: "profile",
@@ -127,7 +126,6 @@ describe("photo quality", () => {
       profileCue: { eyeCollapse: 0.86, noseLead: 0.22 },
     });
     expect(stacked.hardError).toMatch(/three-quarter/);
-    expect(classifyProfilePose(61, { eyeCollapse: null, noseLead: null })).toBe("nearlyLateral");
 
     const near = evaluatePhotoQuality({
       view: "profile",
@@ -140,7 +138,47 @@ describe("photo quality", () => {
       facialHeight: 0.5,
       profileCue: { eyeCollapse: 0.68, noseLead: 0.12 },
     });
-    expect(near.hardError).toMatch(/three-quarter/);
+    expect(near.hardError).toMatch(/side view/);
+
+    const borderline = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 63, pitch: 0, roll: 0 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.3,
+      mirrored: false,
+      profileCue: { eyeCollapse: 0.8, noseLead: 0.14 },
+      orientation: { yaw: 63, pitch: 0, roll: 0, source: "matrix" },
+    });
+    expect(borderline.hardError).toBeNull();
+    expect(borderline.quality.warnings.some((warning) => warning.includes("short of a full side"))).toBe(true);
+
+    const matrixSide = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 20, pitch: 0, roll: 0 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.3,
+      mirrored: false,
+      profileCue: { eyeCollapse: 0.55, noseLead: 0.1 },
+      orientation: { yaw: 82, pitch: 1, roll: 0, source: "matrix" },
+    });
+    expect(matrixSide.hardError).toBeNull();
+
+    const matrixThreeQuarter = evaluatePhotoQuality({
+      view: "profile",
+      faceCount: 1,
+      pose: { yaw: 70, pitch: 0, roll: 0 },
+      blurScore: 0.8,
+      brightnessScore: 0.5,
+      faceCoverage: 0.3,
+      mirrored: false,
+      profileCue: { eyeCollapse: 0.55, noseLead: 0.1 },
+      orientation: { yaw: 40, pitch: 0, roll: 0, source: "matrix" },
+    });
+    expect(matrixThreeQuarter.hardError).toMatch(/three-quarter/);
   });
 
   it("warns on mild tilt without blocking", () => {

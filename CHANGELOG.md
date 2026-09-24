@@ -3,7 +3,7 @@
 ## 2026-09-23 — Capture pipeline
 
 ### Summary
-The front camera capture now advances to the three-quarter step after a local check, instead of waiting on a new face model, a full-frame lens loop, and two network saves. A three-quarter pose stays its own stage. The side stage after it asks for a true lateral outline.
+The front camera capture now advances to the three-quarter step after a local check, instead of waiting on a new face model, a full-frame lens loop, and two network saves. A three-quarter pose is a halfway portrait turn, and the side stage after it asks for a true profile. Turned stages show brackets and a turn indicator, not a drawn face.
 
 ### Added
 - Persistent still-image FaceLandmarker worker, reused across photographs, with request ids, timeout, and shutdown.
@@ -11,8 +11,9 @@ The front camera capture now advances to the three-quarter step after a local ch
 - A camera session that keeps the media stream and live detector from the front step through the profile step.
 - Off-thread lens correction so the saved photograph and the stored landmarks stay in the same coordinate frame.
 - One `POST /api/analyses/[analysisId]/captures` request for the photo, its quality, and its landmarks.
-- A stricter profile pose classifier (`frontal`, `threeQuarter`, `nearlyLateral`, `lateral`) with temporal hysteresis before auto-capture.
-- The capture wizard has a three-quarter stage, then a side stage. The side stage draws a lateral head and rejects a halfway turn. The three-quarter stage keeps the looser pose.
+- One pose classifier for live capture and the photo check. Three-quarter and side are separate bands. A facial transformation matrix is the primary yaw signal, with landmark geometry as a fallback.
+- The capture wizard has a three-quarter stage, then a side stage. Turned stages use corner brackets and a turn indicator. A halfway turn does not pass the side stage.
+- Pose-specific stability windows, so a ready three-quarter or side photo captures in well under a second.
 
 ### Changed
 - Camera statistics come from a small sample. The camera path no longer decodes and re-encodes the JPEG just to measure blur.
@@ -21,7 +22,7 @@ The front camera capture now advances to the three-quarter step after a local ch
 - Background saves can be retried. Photo check waits until the front and profile saves have finished.
 
 ### Tests
-- Profile pose cases cover frontal, mild turn, three-quarter, near profile, true left and right profiles, tilt, and noisy versus stable frames.
+- Profile pose cases cover a halfway turn, a mild turn, a turn that has gone too far, true left and right profiles, a borderline side, matrix yaw, and noisy versus stable frames.
 - Capture routing tests cover a fresh live mesh, a stale mesh, one reused still-image worker, and a camera session that survives the front-to-profile step.
 
 ## 2026-09-23

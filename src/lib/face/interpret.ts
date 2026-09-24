@@ -1,5 +1,7 @@
+import { extractFacialOrientation, type FacialMatrix } from "@/lib/face/facial-transform";
 import { planFrankfortLevel, rotateRawLandmarks } from "@/lib/face/frankfort";
 import { mapLandmarks } from "@/lib/face/mediapipe-map";
+import type { HeadOrientation } from "@/lib/face/profile-pose";
 import {
   estimatePose,
   evaluatePhotoQuality,
@@ -26,6 +28,8 @@ export function interpretDetection(input: {
   brightnessScore: number;
   width?: number;
   height?: number;
+  /** Matrix from the same detection that produced `faces`, when the landmarker returned one. */
+  transform?: FacialMatrix | null;
 }): InterpretedPhoto {
   const faceCount = input.faces.length;
   const primary = input.faces[0] ?? [];
@@ -43,6 +47,7 @@ export function interpretDetection(input: {
   const height = frame?.height ?? 1;
   const pose = raw.length > 0 ? estimatePose(raw, frame) : { yaw: null, pitch: null, roll: null };
   const cue = raw.length > 0 ? profileShapeCue(raw, frame) : undefined;
+  const orientation = orientationFrom(input.transform);
   const level =
     input.view === "profile" && raw.length > 0 ? planFrankfortLevel(raw, width, height) : { radians: null, warnTilt: null };
   if (level.radians !== null) raw = rotateRawLandmarks(raw, level.radians, width, height);
@@ -57,6 +62,7 @@ export function interpretDetection(input: {
     profileCue: cue,
     facialHeight: raw.length > 0 ? faceHeightFraction(raw) : null,
     frankfortTilt: level.warnTilt,
+    orientation,
   });
   if (level.radians !== null) {
     evaluated.quality.notes = [
@@ -66,4 +72,10 @@ export function interpretDetection(input: {
   }
   const landmarks = evaluated.hardError || raw.length === 0 ? [] : Object.values(mapLandmarks(raw, input.view)).filter((item): item is SemanticLandmark => Boolean(item));
   return { hardError: evaluated.hardError, landmarks, quality: evaluated.quality, levelRadians: level.radians };
+}
+
+function orientationFrom(transform: FacialMatrix | null | undefined): HeadOrientation | undefined {
+  const matrix = transform ? extractFacialOrientation(transform) : null;
+  if (!matrix) return undefined;
+  return { yaw: matrix.yaw, pitch: matrix.pitch, roll: matrix.roll, source: "matrix" };
 }

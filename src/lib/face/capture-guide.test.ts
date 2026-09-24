@@ -17,7 +17,6 @@ function aligned(view: CaptureView, patch?: Partial<Parameters<typeof assessCapt
     coverage: 0.22,
     centerX: 0.5,
     centerY: 0.47,
-    facesLeft: false,
     mirroredPreview: true,
     eyeCollapse: view === "profile" ? 0.9 : null,
     noseLead: view === "profile" ? 0.22 : null,
@@ -41,49 +40,61 @@ describe("capture guide", () => {
     expect(aligned("front").status).toBe("ready");
     expect(aligned("front").message).toMatch(/Hold still/);
     expect(aligned("profile").status).toBe("ready");
-    expect(aligned("profile").message).toMatch(/Good side profile/);
+    expect(aligned("profile").message).toMatch(/Perfect side profile/);
     const threeQuarterTurn = aligned("threeQuarter", {
       pose: { yaw: 36, pitch: 0, roll: 0 },
-      eyeCollapse: 0.86,
-      noseLead: 0.22,
+      eyeCollapse: 0.45,
+      noseLead: 0.08,
       facialHeight: 0.5,
     });
     expect(threeQuarterTurn.status).toBe("ready");
-    expect(threeQuarterTurn.message).toMatch(/three-quarter/);
-    expect(aligned("profile", { pose: { yaw: 36, pitch: 0, roll: 0 }, eyeCollapse: 0.86, noseLead: 0.22 }).status).toBe(
-      "adjust",
+    expect(threeQuarterTurn.message).toMatch(/Perfect three-quarter/);
+    expect(aligned("threeQuarter", { pose: { yaw: -40, pitch: 0, roll: 0 }, eyeCollapse: 0.5, noseLead: 0.1, facialHeight: 0.5 }).status).toBe(
+      "ready",
     );
-    expect(aligned("profile", { facesLeft: true }).profileFacing).toBe("left");
-    const threeQuarter = aligned("profile", {
-      pose: { yaw: 22, pitch: 0, roll: 0 },
-      eyeCollapse: 0.48,
-      noseLead: 0.06,
+    expect(aligned("profile", { pose: { yaw: 36, pitch: 0, roll: 0 }, eyeCollapse: 0.55, noseLead: 0.1 }).status).toBe("adjust");
+    expect(aligned("profile", { committedFacing: "right" }).profileFacing).toBe("left");
+    expect(aligned("profile", { committedFacing: "left" }).profileFacing).toBe("right");
+    const shortTurn = aligned("threeQuarter", {
+      pose: { yaw: 18, pitch: 0, roll: 0 },
+      eyeCollapse: 0.4,
+      noseLead: 0.04,
+      facialHeight: 0.5,
     });
-    expect(threeQuarter.status).toBe("adjust");
-    expect(threeQuarter.message).toMatch(/farther/);
-    expect(threeQuarter.checks.find((check) => check.id === "pose")?.ok).toBe(false);
-    const mild = aligned("profile", { pose: { yaw: 18, pitch: 0, roll: 0 }, eyeCollapse: 0.45, noseLead: 0.04 });
-    expect(mild.status).not.toBe("ready");
+    expect(shortTurn.status).toBe("adjust");
+    expect(shortTurn.message).toMatch(/farther/);
+    const tooFar = aligned("threeQuarter", {
+      pose: { yaw: 70, pitch: 0, roll: 0 },
+      eyeCollapse: 0.9,
+      noseLead: 0.2,
+      facialHeight: 0.5,
+      orientationSource: "matrix",
+    });
+    expect(tooFar.status).toBe("adjust");
+    expect(tooFar.message).toMatch(/too far/);
     const near = aligned("profile", {
       pose: { yaw: 52, pitch: 0, roll: 0 },
       eyeCollapse: 0.68,
       noseLead: 0.12,
     });
     expect(near.status).toBe("adjust");
-    expect(near.profilePose).toBe("nearlyLateral");
-    expect(near.message).toMatch(/fully sideways/);
+    expect(near.profilePose).toBe("between");
+    expect(near.message).toMatch(/Almost there/);
     const frontalProfile = aligned("profile", {
       pose: { yaw: 4, pitch: 0, roll: 0 },
       eyeCollapse: 0.3,
       noseLead: 0.02,
     });
     expect(frontalProfile.status).toBe("adjust");
-    expect(frontalProfile.message).toMatch(/either side/);
+    expect(frontalProfile.message).toMatch(/fully sideways/);
     const lookingDown = aligned("profile", { frankfortTilt: 22 });
     expect(lookingDown.status).toBe("adjust");
-    expect(lookingDown.message).toMatch(/gaze level/);
+    expect(lookingDown.message).toMatch(/chin level/);
     const narrowButTall = aligned("profile", { coverage: 0.05, facialHeight: 0.5 });
     expect(narrowButTall.status).toBe("ready");
+    const offCenter = aligned("profile", { anchorX: 0.7, anchorY: 0.47, centerX: 0.78, centerY: 0.6 });
+    expect(offCenter.status).toBe("ready");
+    expect(offCenter.checks.find((check) => check.id === "framing")?.ok).toBe(false);
     expect(aligned("profile", { facialHeight: 0.2 }).message).toMatch(/Move closer/);
     expect(aligned("profile", { facialHeight: 0.9 }).message).toMatch(/Move back/);
   });
@@ -109,7 +120,6 @@ describe("capture guide", () => {
       coverage: 0.22,
       centerX: 0.5,
       centerY: 0.47,
-      facesLeft: false,
       mirroredPreview: true,
     };
     expect(assessCaptureAlignment(input).status).toBe("adjust");
