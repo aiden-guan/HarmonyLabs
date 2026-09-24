@@ -424,14 +424,14 @@ function instruction(
   if (failed === "face") {
     if (input.faceCount > 1) return "Only one face can be in the frame.";
     if (input.view === "threeQuarter") return "Turn your head about halfway to either side.";
-    if (input.view === "profile") return "Turn until you are fully sideways.";
+    if (input.view === "profile") return "Turn toward a side view.";
     return "Step into the outline.";
   }
   if (failed === "framing") return framingMessage(input, framingIssue);
   if (failed === "level") return levelMessage(input.view, input.pose, band);
   if (failed === "pose" && input.view !== "front" && reading) return capturePoseMessage(input.view, reading, screenDirection);
   if (input.view === "threeQuarter") return "Turn your head about halfway to either side.";
-  if (input.view === "profile") return "Keep turning until you're fully sideways.";
+  if (input.view === "profile") return "Keep turning toward a side view.";
   return "Square your face to the camera so it matches the outline.";
 }
 

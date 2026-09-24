@@ -8,9 +8,21 @@ export interface GuideLive {
   nose: { x: number; y: number } | null;
 }
 
-const READY = "#1f7a4d";
-const ADJUST = "#c9842a";
-const SEARCH = "#d7e3ec";
+const READY = "#d8ffe9";
+const ADJUST = "#ffbf5c";
+const SEARCH = "#f7fbff";
+const INK = "#071018";
+
+function strokeProps(stroke: string, width: number) {
+  return {
+    fill: "none" as const,
+    stroke,
+    strokeWidth: width,
+    vectorEffect: "non-scaling-stroke" as const,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+}
 
 function guideColor(status: CaptureAssessment["status"]): string {
   if (status === "ready") return READY;
@@ -18,7 +30,7 @@ function guideColor(status: CaptureAssessment["status"]): string {
   return SEARCH;
 }
 
-/** Brackets and, for a turned head, a generic scale oval. Front keeps its simple alignment marks. */
+/** Brackets and, for a turned head, the same kind of frame plus the live face contour. Front keeps its simple alignment marks. */
 export function CaptureFrameGuide({
   width,
   height,
@@ -33,9 +45,12 @@ export function CaptureFrameGuide({
   live: GuideLive | null;
 }) {
   const box = captureGuideBox(width, height, view);
-  const weight = Math.max(1.25, width / 520);
+  const weight = Math.max(1.25, Math.min(width, height) / 180);
   const stroke = guideColor(status);
-  const maskId = "moglabs-capture-mask";
+  const liveStroke = status === "ready" ? "#e7fff2" : "#f4fbff";
+  const ovalPoints = plottedOval(live, width, height);
+  const eye = plottedEyeLine(live, width, height);
+  const nose = plottedPoint(live?.nose, width, height);
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -44,44 +59,26 @@ export function CaptureFrameGuide({
       data-status={status}
       aria-hidden="true"
     >
-      <defs>
-        <mask id={maskId}>
-          <rect width={width} height={height} fill="white" />
-          <rect x={box.left} y={box.top} width={box.faceW} height={box.faceH} rx={width * 0.02} fill="black" />
-        </mask>
-      </defs>
-      <rect width={width} height={height} fill="rgba(8,14,20,0.42)" mask={`url(#${maskId})`} />
+      <path fill="rgba(8,14,20,0.42)" fillRule="evenodd" d={vignette(width, height, box)} />
       {view === "front" ? (
         <FrontGuide box={box} stroke={stroke} weight={weight} />
       ) : (
-        <g fill="none" stroke={stroke} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 180ms ease" }}>
-          <ellipse data-guide="frame-oval" cx={box.cx} cy={box.cy} rx={box.faceW / 2} ry={box.faceH / 2} strokeOpacity={0.22} />
-          <path data-guide="brackets" d={brackets(box, weight * 4)} />
-          <circle data-guide="center" cx={box.cx} cy={box.cy} r={weight * 1.4} fill={stroke} stroke="none" />
-        </g>
+        <TurnedGuide box={box} stroke={stroke} weight={weight} />
       )}
-      {view === "front" && live && live.oval.length > 2 ? (
-        <polygon
-          data-landmark="oval"
-          points={live.oval.map((point) => `${point.x * width},${point.y * height}`).join(" ")}
-          fill="none"
-          stroke={status === "ready" ? "#8fd0a8" : "#d5e4ef"}
-          strokeWidth={weight}
-          strokeLinejoin="round"
-        />
+      {ovalPoints ? (
+        <>
+          <polygon points={ovalPoints} {...strokeProps(INK, 4.5)} />
+          <polygon data-landmark="oval" points={ovalPoints} {...strokeProps(liveStroke, 2.5)} />
+        </>
       ) : null}
-      {view === "front" && live?.eyeLine ? (
-        <line
-          x1={live.eyeLine[0].x * width}
-          y1={live.eyeLine[0].y * height}
-          x2={live.eyeLine[1].x * width}
-          y2={live.eyeLine[1].y * height}
-          stroke={status === "ready" ? "#8fd0a8" : "#d5e4ef"}
-          strokeWidth={weight}
-        />
+      {view === "front" && eye ? (
+        <>
+          <line x1={eye[0].x} y1={eye[0].y} x2={eye[1].x} y2={eye[1].y} {...strokeProps(INK, 4.5)} />
+          <line x1={eye[0].x} y1={eye[0].y} x2={eye[1].x} y2={eye[1].y} {...strokeProps(liveStroke, 2.5)} />
+        </>
       ) : null}
-      {view === "front" && live?.nose ? (
-        <circle data-landmark="nose" cx={live.nose.x * width} cy={live.nose.y * height} r={weight * 1.8} fill={status === "ready" ? "#8fd0a8" : "#d5e4ef"} />
+      {view === "front" && nose ? (
+        <circle data-landmark="nose" cx={nose.x} cy={nose.y} r={weight * 1.8} fill={liveStroke} stroke={INK} strokeWidth={3} vectorEffect="non-scaling-stroke" />
       ) : null}
     </svg>
   );
@@ -119,30 +116,110 @@ export function TurnTrack({
   );
 }
 
+function plottedPoint(
+  point: { x: number; y: number } | null | undefined,
+  width: number,
+  height: number,
+): { x: number; y: number } | null {
+  if (!point) return null;
+  const x = point.x * width;
+  const y = point.y * height;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function plottedOval(live: GuideLive | null, width: number, height: number): string {
+  if (!live || live.oval.length < 3) return "";
+  const parts: string[] = [];
+  for (const point of live.oval) {
+    const plotted = plottedPoint(point, width, height);
+    if (!plotted) return "";
+    parts.push(`${plotted.x},${plotted.y}`);
+  }
+  return parts.join(" ");
+}
+
+function plottedEyeLine(
+  live: GuideLive | null,
+  width: number,
+  height: number,
+): [{ x: number; y: number }, { x: number; y: number }] | null {
+  if (!live?.eyeLine) return null;
+  const start = plottedPoint(live.eyeLine[0], width, height);
+  const end = plottedPoint(live.eyeLine[1], width, height);
+  if (!start || !end) return null;
+  return [start, end];
+}
+
+function TurnedGuide({ box, stroke, weight }: { box: GuideBox; stroke: string; weight: number }) {
+  const { cx, top, faceH } = box;
+  const marks = (marked: boolean) => (
+    <>
+      <ellipse
+        {...(marked ? { "data-guide": "frame-oval" } : {})}
+        cx={cx}
+        cy={box.cy}
+        rx={box.faceW / 2}
+        ry={box.faceH / 2}
+      />
+      <path {...(marked ? { "data-guide": "brackets" } : {})} d={brackets(box, weight * 6, 0.16)} />
+      <line
+        x1={cx}
+        y1={top + faceH * 0.12}
+        x2={cx}
+        y2={top + faceH * 0.88}
+        strokeDasharray={`${weight * 1.5} ${weight * 2.5}`}
+      />
+      <circle {...(marked ? { "data-guide": "center" } : {})} cx={cx} cy={box.cy} r={weight * 1.8} fill={marked ? stroke : INK} stroke="none" />
+    </>
+  );
+  return (
+    <>
+      <g {...strokeProps(INK, 8)}>{marks(false)}</g>
+      <g {...strokeProps(stroke, 3.5)}>{marks(true)}</g>
+    </>
+  );
+}
+
 function FrontGuide({ box, stroke, weight }: { box: GuideBox; stroke: string; weight: number }) {
   const { cx, left, top, faceW, faceH } = box;
   const eyeY = top + faceH * 0.4;
   const mouthY = top + faceH * 0.72;
-  return (
-    <g fill="none" stroke={stroke} strokeWidth={weight} strokeLinecap="round" style={{ transition: "stroke 180ms ease" }}>
+  const marks = (marked: boolean) => (
+    <>
       <ellipse cx={cx} cy={box.cy} rx={faceW / 2} ry={faceH / 2} />
-      <path data-guide="brackets" d={brackets(box, weight * 6)} />
+      <path {...(marked ? { "data-guide": "brackets" } : {})} d={brackets(box, weight * 6)} />
       <line x1={cx} y1={top + faceH * 0.1} x2={cx} y2={top + faceH * 0.94} strokeDasharray={`${weight * 1.5} ${weight * 2.5}`} />
       <line x1={left + faceW * 0.16} y1={eyeY} x2={left + faceW * 0.84} y2={eyeY} />
       <ellipse cx={left + faceW * 0.35} cy={eyeY} rx={faceW * 0.09} ry={faceH * 0.032} />
       <ellipse cx={left + faceW * 0.65} cy={eyeY} rx={faceW * 0.09} ry={faceH * 0.032} />
       <line x1={cx} y1={top + faceH * 0.48} x2={cx} y2={top + faceH * 0.62} />
       <line x1={left + faceW * 0.38} y1={mouthY} x2={left + faceW * 0.62} y2={mouthY} />
-    </g>
+    </>
+  );
+  return (
+    <>
+      <g {...strokeProps(INK, 8)}>{marks(false)}</g>
+      <g {...strokeProps(stroke, 3.5)}>{marks(true)}</g>
+    </>
   );
 }
 
-function brackets(box: GuideBox, pad: number): string {
+function vignette(width: number, height: number, box: GuideBox): string {
+  const radius = Math.min(width * 0.02, box.faceW / 5, box.faceH / 5);
+  return `M 0 0 H ${width} V ${height} H 0 Z ${roundedRect(box.left, box.top, box.faceW, box.faceH, radius)}`;
+}
+
+function roundedRect(x: number, y: number, w: number, h: number, r: number): string {
+  return `M ${x + r} ${y} H ${x + w - r} A ${r} ${r} 0 0 1 ${x + w} ${y + r} V ${y + h - r} A ${r} ${r} 0 0 1 ${x + w - r} ${y + h} H ${x + r} A ${r} ${r} 0 0 1 ${x} ${y + h - r} V ${y + r} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`;
+}
+
+function brackets(box: GuideBox, pad: number, armFraction = 0.1): string {
   const left = box.left - pad;
   const top = box.top - pad;
   const right = box.left + box.faceW + pad;
   const bottom = box.top + box.faceH + pad;
-  const arm = Math.min(box.faceW, box.faceH) * 0.1;
+  const arm = Math.min(box.faceW, box.faceH) * armFraction;
   return [
     `M ${left} ${top + arm} L ${left} ${top} L ${left + arm} ${top}`,
     `M ${right - arm} ${top} L ${right} ${top} L ${right} ${top + arm}`,

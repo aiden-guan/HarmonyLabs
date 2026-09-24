@@ -59,18 +59,18 @@ describe("side pose", () => {
     expect(isSidePose(matrix(40), openEyes)).toBe(false);
     expect(isSidePose(matrix(40), { eyeCollapse: 0.86, noseLead: 0.22 })).toBe(false);
     expect(capturePoseMessage("profile", classifyCapturePose(matrix(82), stacked))).toMatch(/Perfect side profile/);
-    expect(capturePoseMessage("profile", classifyCapturePose(matrix(40), openEyes))).toMatch(/fully sideways/);
+    expect(capturePoseMessage("profile", classifyCapturePose(matrix(40), openEyes))).toMatch(/side view/);
   });
 
   it("keeps a borderline profile usable instead of failing it", () => {
-    const reading = classifyCapturePose(matrix(63), { eyeCollapse: 0.8, noseLead: 0.14 });
+    const reading = classifyCapturePose(matrix(54), { eyeCollapse: 0.8, noseLead: 0.14 });
     expect(reading.side).toBe(true);
     expect(reading.sideBorderline).toBe(true);
     expect(capturePoseMessage("profile", reading)).toMatch(/Good side profile/);
   });
 
   it("asks for a little more before the side band and a little less past it", () => {
-    expect(capturePoseMessage("profile", classifyCapturePose(matrix(62), { eyeCollapse: 0.4, noseLead: 0.04 }))).toMatch(
+    expect(capturePoseMessage("profile", classifyCapturePose(matrix(54), { eyeCollapse: 0.4, noseLead: 0.04 }))).toMatch(
       /slightly farther/,
     );
     expect(capturePoseMessage("profile", classifyCapturePose(matrix(110), { eyeCollapse: 0.2, noseLead: 0.02 }))).toMatch(

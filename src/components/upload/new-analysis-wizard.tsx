@@ -44,7 +44,7 @@ const threeQuarterSteps = [
 ];
 
 const profileSteps = [
-  "Keep turning until the far eyebrow disappears.",
+  "Turn until the far eye is just out of view.",
   "Keep your eyes looking straight ahead.",
   "Keep your chin neutral — don't look up or down.",
   "Keep your ear uncovered.",
@@ -138,18 +138,19 @@ export function NewAnalysisWizard() {
     router.push(`/analysis/${body.analysisId}/edit`);
   }
 
-  function onThreeQuarterCamera(result: CameraCaptureResult) {
+  function onThreeQuarterCamera(result: CameraCaptureResult): boolean {
     void result.image.then((image) => URL.revokeObjectURL(image.previewUrl));
     if (!e2eSkipsThreeQuarterPose()) {
       const summary = summarizeLiveFaces(result.faces, { width: result.width, height: result.height }, null, result.transform);
       const message = threeQuarterGate(summary, true);
       if (message) {
         setError(message);
-        return;
+        return false;
       }
     }
     setError("");
     setStep("profile");
+    return true;
   }
 
   async function onThreeQuarterFile(file: File) {
@@ -186,8 +187,8 @@ export function NewAnalysisWizard() {
     }
   }
 
-  function onCamera(view: FaceView, result: CameraCaptureResult) {
-    if (!analysisId) return;
+  function onCamera(view: FaceView, result: CameraCaptureResult): boolean {
+    if (!analysisId) return false;
     markCapture("landmark-interpretation-start");
     const interpreted = interpretDetection({
       faces: result.faces,
@@ -202,7 +203,7 @@ export function NewAnalysisWizard() {
     measureCapture("landmark-interpretation", "landmark-interpretation-start", "landmark-interpretation-end");
     if (interpreted.hardError) {
       setError(interpreted.hardError);
-      return;
+      return false;
     }
     setError("");
     beginSave(
@@ -219,6 +220,7 @@ export function NewAnalysisWizard() {
       interpreted,
       true,
     );
+    return true;
   }
 
   async function onFile(view: FaceView, file: File) {
@@ -471,6 +473,16 @@ export function NewAnalysisWizard() {
         </div>
       </div>
 
+      {error ? (
+        <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-4 text-sm text-signal flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold">This photo needs another try</p>
+            <p className="text-xs leading-relaxed">{error}</p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Step Content */}
       <AnimatePresence mode="wait">
         <motion.div
@@ -534,8 +546,8 @@ export function NewAnalysisWizard() {
               pending={pending}
               notice={saveLine}
               onCamera={(result) => {
-                if (step === "threeQuarter") onThreeQuarterCamera(result);
-                else onCamera(step, result);
+                if (step === "threeQuarter") return onThreeQuarterCamera(result);
+                return onCamera(step, result);
               }}
               onFile={(file) => {
                 if (step === "threeQuarter") void onThreeQuarterFile(file);
@@ -624,15 +636,6 @@ export function NewAnalysisWizard() {
         </motion.div>
       </AnimatePresence>
 
-      {error ? (
-        <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-4 text-sm text-signal flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold">This photo needs another try</p>
-            <p className="text-xs leading-relaxed">{error}</p>
-          </div>
-        </div>
-      ) : null}
       {saveError ? (
         <div role="alert" className="rounded-md border border-signal/20 bg-signal/5 p-4 text-sm text-signal flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -754,7 +757,7 @@ function PhotoStep({
   preview?: string;
   pending: boolean;
   notice: string;
-  onCamera: (result: CameraCaptureResult) => void;
+  onCamera: (result: CameraCaptureResult) => boolean | void;
   onFile: (file: File) => void;
   onManual: (file: File) => void;
 }) {
@@ -787,7 +790,7 @@ function PhotoStep({
         file: new File([image.blob], `${acceptedView}.jpg`, { type: image.blob.type || "image/jpeg" }),
       });
     });
-    onCamera(result);
+    return onCamera(result);
   }
 
   return (
@@ -944,13 +947,13 @@ function ThreeQuarterInstructions() {
 function ProfileInstructions() {
   return (
     <div className="mb-4 rounded-md border border-line bg-panel-muted p-3">
-      <p className="text-sm font-medium text-ink">Turn until you are fully sideways.</p>
+      <p className="text-sm font-medium text-ink">Turn to a side view.</p>
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
         {profileSteps.map((step) => (
           <li key={step}>{step}</li>
         ))}
       </ol>
-      <p className="mt-2 text-xs text-muted">When you are fully sideways, the far eyebrow should no longer be visible.</p>
+      <p className="mt-2 text-xs text-muted">Stop once the far eye leaves view. You do not need a harder turn than that.</p>
       <ProfileTurnPictogram />
     </div>
   );

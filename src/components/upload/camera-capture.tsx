@@ -92,12 +92,16 @@ function cloneFaces(faces: RawFaceLandmark[][]): RawFaceLandmark[][] {
   return faces.map((face) => face.map((point) => ({ ...point })));
 }
 
+const GUIDE_PAUSED = "The alignment guide paused. You can still capture, or upload a photo.";
+const RETRY_CAPTURE_MS = 1400;
+
 export function CameraCapture({
   view,
   onCapture,
 }: {
   view: CaptureView;
-  onCapture: (result: CameraCaptureResult) => void;
+  /** Return false when this photo was rejected and the step did not advance. */
+  onCapture: (result: CameraCaptureResult) => boolean | void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCaptureRef = useRef(onCapture);
@@ -106,6 +110,8 @@ export function CameraCapture({
   const clockRef = useRef<StabilityClock>({ since: null, lastOk: null });
   const stableReady = useRef(false);
   const pauseAuto = useRef(false);
+  const retryAtRef = useRef<number | null>(null);
+  const liveHoldRef = useRef<{ summary: LiveFaceSummary; at: number } | null>(null);
   const shooting = useRef(false);
   const holdTimer = useRef<number | null>(null);
   const lensRef = useRef<LensModel>(lensForDevice("desktop"));
@@ -132,6 +138,8 @@ export function CameraCapture({
     setCaptureError("");
     setHolding("");
     setPendingCapture(false);
+    retryAtRef.current = null;
+    liveHoldRef.current = null;
   }
 
   function disarmHold() {
@@ -161,6 +169,8 @@ export function CameraCapture({
     stableReady.current = false;
     facingRef.current = null;
     pauseAuto.current = false;
+    retryAtRef.current = null;
+    liveHoldRef.current = null;
     shooting.current = false;
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current);
@@ -185,6 +195,7 @@ export function CameraCapture({
 
     let cancelled = false;
     let busy = false;
+    let failures = 0;
     let raf = 0;
     let last = 0;
     let released = false;
@@ -206,17 +217,23 @@ export function CameraCapture({
     const loop = (now: number) => {
       if (cancelled) return;
       raf = requestAnimationFrame(loop);
-      if (busy || now - last < LIVE_INFERENCE_MS || video.readyState < 2) return;
+      if (busy || shooting.current || now - last < LIVE_INFERENCE_MS || video.readyState < 2) return;
       last = now;
       busy = true;
       const requestedAt = now;
       void detectLiveFace(video, now)
         .then((detection) => {
-          if (!cancelled) applyFacesRef.current(detection.faces, requestedAt, detection.transforms[0] ?? null);
+          if (cancelled) return;
+          if (failures > 0) {
+            failures = 0;
+            setCaptureError((current) => (current === GUIDE_PAUSED ? "" : current));
+          }
+          applyFacesRef.current(detection.faces, requestedAt, detection.transforms[0] ?? null);
         })
         .catch(() => {
-          if (!cancelled) setCaptureError("The alignment guide stopped. You can still capture, or upload a photo.");
-          cancelled = true;
+          if (cancelled) return;
+          failures += 1;
+          if (failures === 12) setCaptureError(GUIDE_PAUSED);
         })
         .finally(() => {
           busy = false;
@@ -272,13 +289,20 @@ export function CameraCapture({
       const video = videoRef.current;
       const width = video?.videoWidth ?? 0;
       const height = video?.videoHeight ?? 0;
-      if (width > 1 && height > 1) {
+      if (width > 1 && height > 1 && faces.length > 0) {
         latestFacesRef.current = cloneFaces(faces);
         latestTransformRef.current = transform;
         latestDetectionTimestampRef.current = detectedAt;
         latestFrameDimensionsRef.current = { width, height };
       }
-      const summary = summarizeLiveFaces(faces, { width, height }, lensRef.current, transform);
+      let summary = summarizeLiveFaces(faces, { width, height }, lensRef.current, transform);
+      if (summary.faceCount === 1) {
+        liveHoldRef.current = { summary, at: detectedAt };
+      } else if (liveHoldRef.current && detectedAt - liveHoldRef.current.at <= POSE_GRACE_MS) {
+        summary = liveHoldRef.current.summary;
+      } else {
+        liveHoldRef.current = null;
+      }
       const currentView = viewRef.current;
       if (currentView !== "front" && summary.faceCount === 1) {
         facingRef.current = nextProfileFacing(facingRef.current, summary.pose.yaw);
@@ -307,7 +331,13 @@ export function CameraCapture({
       stableReady.current = next.status === "ready";
       setLive(summary.faceCount > 0 ? summary : null);
       setAssessment(next);
-      if (next.status !== "ready") pauseAuto.current = false;
+      if (next.status !== "ready") {
+        if (retryAtRef.current === null) pauseAuto.current = false;
+      } else if (retryAtRef.current !== null && detectedAt >= retryAtRef.current) {
+        pauseAuto.current = false;
+        retryAtRef.current = null;
+        clockRef.current = { since: null, lastOk: null };
+      }
       const holdMs = stableHoldMs(currentView);
       const stepped = advanceStability(clockRef.current, next.status === "ready", detectedAt, holdMs, POSE_GRACE_MS);
       clockRef.current = stepped.clock;
@@ -375,7 +405,7 @@ export function CameraCapture({
 
       const deliver = (rawFaces: RawFaceLandmark[][], usedLiveMesh: boolean, detectedAt: number, transform: FacialMatrix | null) => {
         const snapshot = cloneFaces(rawFaces);
-        onCaptureRef.current({
+        const accepted = onCaptureRef.current({
           width,
           height,
           rawFaces: snapshot,
@@ -389,6 +419,12 @@ export function CameraCapture({
           transform,
           image,
         });
+        if (accepted === false) {
+          retryAtRef.current = performance.now() + RETRY_CAPTURE_MS;
+          pauseAuto.current = true;
+          clockRef.current = { since: null, lastOk: null };
+          stableReady.current = false;
+        }
       };
 
       if (liveMeshIsFresh({ source: "camera", live, capturedAt, captureFrame })) {
@@ -402,22 +438,38 @@ export function CameraCapture({
       setHolding("Checking the photo");
       markCapture("face-detection-start");
       let stillTransform: FacialMatrix | null = null;
-      const routed = await resolveCaptureFaces({
-        source: "camera",
-        live,
-        capturedAt,
-        captureFrame,
-        detectStill: async () => {
-          const detection = await detectCanvas(canvas, viewRef.current === "front" ? "front" : "profile");
-          stillTransform = detection.transforms[0] ?? null;
-          return detection.faces;
-        },
-      });
+      let routed: { faces: RawFaceLandmark[][]; path: "live" | "still" };
+      try {
+        routed = await withTimeout(
+          resolveCaptureFaces({
+            source: "camera",
+            live,
+            capturedAt,
+            captureFrame,
+            detectStill: async () => {
+              const detection = await detectCanvas(canvas, viewRef.current === "front" ? "front" : "profile");
+              stillTransform = detection.transforms[0] ?? null;
+              return detection.faces;
+            },
+          }),
+          4000,
+        );
+      } catch (error) {
+        if (latestFacesRef.current.length === 0) throw error;
+        markCapture("face-detection-end");
+        measureCapture("face-detection", "face-detection-start", "face-detection-end");
+        deliver(latestFacesRef.current, true, latestDetectionTimestampRef.current ?? capturedAt, latestTransformRef.current);
+        return;
+      }
       markCapture("face-detection-end");
       measureCapture("face-detection", "face-detection-start", "face-detection-end");
-      deliver(routed.faces, false, capturedAt, routed.path === "live" ? latestTransformRef.current : stillTransform);
+      deliver(routed.faces, routed.path === "live", capturedAt, routed.path === "live" ? latestTransformRef.current : stillTransform);
     } catch (error) {
       setCaptureError(error instanceof Error ? error.message : "Could not capture the photo.");
+      retryAtRef.current = performance.now() + RETRY_CAPTURE_MS;
+      pauseAuto.current = true;
+      clockRef.current = { since: null, lastOk: null };
+      stableReady.current = false;
     } finally {
       shooting.current = false;
       setHolding("");
@@ -426,6 +478,7 @@ export function CameraCapture({
 
   function cancelHold() {
     pauseAuto.current = true;
+    retryAtRef.current = null;
     clockRef.current = { since: null, lastOk: null };
     disarmHold();
   }
@@ -440,14 +493,14 @@ export function CameraCapture({
       <div className="relative mx-auto overflow-hidden bg-[#14202b]" style={previewFrameStyle(frame.width, frame.height)}>
         <video
           ref={videoRef}
-          className={cn("absolute inset-0 h-full w-full object-contain", phase === "live" ? "opacity-100" : "opacity-0")}
+          className={cn("absolute inset-0 z-0 h-full w-full object-contain", phase === "live" ? "opacity-100" : "opacity-0")}
           style={mirrorStyle}
           playsInline
           muted
           autoPlay
           disablePictureInPicture
         />
-        <div className="pointer-events-none absolute inset-0" style={mirrorStyle}>
+        <div className="pointer-events-none absolute inset-0 z-10" style={{ ...mirrorStyle, isolation: "isolate", transform: "translateZ(0) scaleX(-1)" }}>
           <CaptureFrameGuide
             width={frame.width}
             height={frame.height}
@@ -506,6 +559,22 @@ function cameraPhase(error: unknown): CameraPhase {
     if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") return "missing";
   }
   return "unavailable";
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("Checking the photo took too long.")), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 async function openCamera(video: MediaTrackConstraints): Promise<MediaStream> {

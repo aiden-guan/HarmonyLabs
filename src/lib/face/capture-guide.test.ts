@@ -86,7 +86,7 @@ describe("capture guide", () => {
       noseLead: 0.02,
     });
     expect(frontalProfile.status).toBe("adjust");
-    expect(frontalProfile.message).toMatch(/fully sideways/);
+    expect(frontalProfile.message).toMatch(/side view/);
     const lookingDown = aligned("profile", { frankfortTilt: 22 });
     expect(lookingDown.status).toBe("adjust");
     expect(lookingDown.message).toMatch(/chin level/);

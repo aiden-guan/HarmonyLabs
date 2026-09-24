@@ -5,9 +5,9 @@ import type { ProfileShapeCue } from "@/lib/face/quality";
  *
  * Matrix yaw is the facial-transformation Euler angle in degrees. Those bands
  * are the live target: a portrait three-quarter is about 35–45°, and a side
- * view is about 68–90°. MediaPipe's single-camera fit rarely sits at a literal
- * 90°, so the acceptable side band starts at 68° and a slightly shorter turn
- * can still be kept with a warning.
+ * view is about 56–90°. MediaPipe's single-camera fit rarely sits at a literal
+ * 90°, so a natural side — far eye just out of view — is accepted from 56°,
+ * and a slightly shorter turn can still be kept with a warning.
  *
  * Geometry yaw is the landmark atan2 fallback. It is not degrees. Its cuts
  * live here so a missing matrix still names the same poses, including the
@@ -75,21 +75,20 @@ const MATRIX_BANDS: Bands = {
   tqIdealMin: 35,
   tqIdealMax: 45,
   tqMax: 52,
-  sideBorderMin: 60,
-  sideMin: 68,
-  sideIdealMin: 78,
+  sideBorderMin: 53,
+  sideMin: 56,
+  sideIdealMin: 64,
   sideIdealMax: 90,
-  sideMax: 96,
+  sideMax: 100,
 };
 
 const MATRIX_BANDS_RELAXED: Bands = {
   ...MATRIX_BANDS,
   frontalMax: 18,
   tqMin: 25,
-  tqMax: 55,
-  sideBorderMin: 56,
-  sideMin: 64,
-  sideMax: 100,
+  tqMax: 52,
+  sideMin: 54,
+  sideMax: 104,
 };
 
 const GEOMETRY_BANDS: Bands = {
@@ -217,7 +216,7 @@ export function capturePoseMessage(
   if (reading.side) return "Good side profile — hold still.";
   if (reading.zone === "past") return "Turn slightly back until your profile is visible.";
   if (reading.zone === "between") return "Almost there — turn slightly farther.";
-  return "Keep turning until you're fully sideways.";
+  return "Keep turning toward a side view.";
 }
 
 export function stableHoldMs(view: CaptureStage): number {
@@ -272,7 +271,7 @@ export function screenTurnDirection(sourceFacing: "left" | "right", mirrored: bo
 export function turnProgress(orientation: HeadOrientation, view: "threeQuarter" | "profile"): { amount: number; target: number } {
   const abs = Math.abs(finite(orientation.yaw) ?? 0);
   const span = orientation.source === "matrix" ? 90 : 75;
-  const targetYaw = view === "threeQuarter" ? (orientation.source === "matrix" ? 40 : 36) : orientation.source === "matrix" ? 84 : 66;
+  const targetYaw = view === "threeQuarter" ? (orientation.source === "matrix" ? 40 : 36) : 60;
   return {
     amount: Math.max(0, Math.min(1, abs / span)),
     target: Math.max(0, Math.min(1, targetYaw / span)),

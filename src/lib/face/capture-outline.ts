@@ -1,7 +1,7 @@
 /**
  * Framing proportions for the capture guide.
- * Turned views draw brackets and, at most, a generic head-sized oval.
- * They do not draw eyes, a nose, an ear, or a profile silhouette.
+ * Turned views draw brackets, a head-sized oval, a center line, and the live face contour.
+ * They do not draw eyes, a nose, or a cartoon profile.
  */
 
 /** Width / height of the preferred head region. */

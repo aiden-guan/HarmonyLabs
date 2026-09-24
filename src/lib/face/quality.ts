@@ -263,8 +263,8 @@ export function evaluatePhotoQuality(input: {
       hardError =
         hardError ??
         (reading.threeQuarter
-          ? "This is still a three-quarter view. Keep turning until you are fully sideways."
-          : "This is not a side view yet. Turn until you are fully sideways.");
+          ? "This is still a three-quarter view. Keep turning toward a side view."
+          : "This is not a side view yet. Turn toward a side view.");
     } else if (reading.sideBorderline) {
       warnings.push(
         "The head is a little short of a full side profile. Measurements from this photo are less certain.",

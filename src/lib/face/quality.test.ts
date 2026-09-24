@@ -143,13 +143,13 @@ describe("photo quality", () => {
     const borderline = evaluatePhotoQuality({
       view: "profile",
       faceCount: 1,
-      pose: { yaw: 63, pitch: 0, roll: 0 },
+      pose: { yaw: 53, pitch: 0, roll: 0 },
       blurScore: 0.8,
       brightnessScore: 0.5,
       faceCoverage: 0.3,
       mirrored: false,
       profileCue: { eyeCollapse: 0.8, noseLead: 0.14 },
-      orientation: { yaw: 63, pitch: 0, roll: 0, source: "matrix" },
+      orientation: { yaw: 53, pitch: 0, roll: 0, source: "matrix" },
     });
     expect(borderline.hardError).toBeNull();
     expect(borderline.quality.warnings.some((warning) => warning.includes("short of a full side"))).toBe(true);
