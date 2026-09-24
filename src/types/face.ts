@@ -13,7 +13,11 @@ export type MetricCategory =
 
 export type MetricUnit = "ratio" | "percent" | "degrees";
 
-export type ReferenceConfidence = "experimental";
+export type ReferenceConfidence = "literature" | "experimental" | "informational";
+
+export type CaptureGrade = "measurement-grade" | "good" | "limited";
+
+export type DistanceProtocolStatus = "followed" | "not-followed" | "unknown";
 
 export interface Point {
   x: number;
@@ -60,6 +64,7 @@ export type SemanticLandmarkKey =
   | "pogonion"
   | "menton"
   | "foreheadApex"
+  | "trichion"
   | "columella"
   | "sublabiale";
 
@@ -120,6 +125,8 @@ export interface FacialMetricDefinition {
   };
   explanation: string;
   overlay: MetricOverlay;
+  featureGroup: import("@/lib/face/scoring/feature-groups").FeatureGroupId;
+  evidence: import("@/lib/face/scoring/evidence-types").MetricEvidence;
 }
 
 export interface PhotoQuality {
@@ -135,6 +142,13 @@ export interface PhotoQuality {
   /** Extra context that does not lower measurement confidence. */
   notes?: string[];
   mirrored: boolean;
+  captureGrade?: CaptureGrade;
+  distanceProtocol?: DistanceProtocolStatus;
+  perspectiveRisk?: boolean;
+  frameCount?: number;
+  landmarkDispersion?: number | null;
+  radialCorrectionApplied?: boolean;
+  expressionNeutral?: boolean | null;
 }
 
 export const CATEGORY_LABELS: Record<MetricCategory, string> = {

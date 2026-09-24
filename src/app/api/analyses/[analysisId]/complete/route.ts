@@ -27,7 +27,12 @@ export async function POST(request: Request, context: RouteContext) {
   const result = completeAnalysis({
     front: toLandmarks(parsed.data.front),
     profile: toLandmarks(parsed.data.profile),
-    qualities: existing.photos.map((photo) => photo.quality),
+    qualities: existing.photos.map((photo) => ({ ...photo.quality, view: photo.view })),
+    capture: {
+      presentation: existing.presentationProfile ?? "neutral",
+      adultAcknowledged: existing.adultAcknowledged ?? true,
+      distanceProtocol: existing.distanceProtocol ?? undefined,
+    },
   });
   const saved = await store.saveResults(caller.id, analysisId, result);
   if (!saved) return jsonError("Analysis not found.", 404);

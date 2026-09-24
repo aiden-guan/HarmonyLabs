@@ -1,4 +1,5 @@
 import type { CategoryScore } from "@/lib/face/scoring/aggregate";
+import type { DistanceProtocol, PresentationProfile, ScoringVersionId } from "@/lib/face/versions";
 import type { AnalysisStatus, AnalysisSummary } from "@/types/analysis";
 import type {
   FaceView,
@@ -30,6 +31,11 @@ export interface StoredMetric {
   unit: MetricUnit;
   category: MetricCategory;
   view: FaceView;
+  evidenceTier?: number | null;
+  evidenceLabel?: string | null;
+  scoreEligible?: boolean;
+  measurementConfidence?: number | null;
+  contribution?: number | null;
 }
 
 export interface StoredPhoto {
@@ -60,11 +66,21 @@ export interface AnalysisDetail extends AnalysisSummary {
   landmarks: StoredLandmark[];
   metrics: StoredMetric[];
   messages: StoredMessage[];
+  scoringVersion?: ScoringVersionId | string | null;
+  metricDefinitionVersion?: string | null;
+  referenceDataVersion?: string | null;
+  landmarkModelVersion?: string | null;
+  presentationProfile?: PresentationProfile | null;
+  adultAcknowledged?: boolean | null;
+  distanceProtocol?: DistanceProtocol | null;
 }
 
 export interface CreateAnalysisInput {
   name: string;
   isSample?: boolean;
+  adultAcknowledged?: boolean;
+  presentationProfile?: PresentationProfile;
+  distanceProtocol?: DistanceProtocol;
 }
 
 export interface PhotoSaveInput {
@@ -86,4 +102,11 @@ export interface ResultSaveInput {
   confidence: "High" | "Moderate" | "Low" | null;
   metrics: StoredMetric[];
   errorMessage?: string | null;
+  scoringVersion?: string | null;
+  metricDefinitionVersion?: string | null;
+  referenceDataVersion?: string | null;
+  landmarkModelVersion?: string | null;
+  presentationProfile?: PresentationProfile | null;
+  adultAcknowledged?: boolean | null;
+  distanceProtocol?: DistanceProtocol | null;
 }

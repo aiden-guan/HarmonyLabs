@@ -38,6 +38,13 @@ interface LocalAnalysis {
   detectedLandmarks: Partial<Record<FaceView, SemanticLandmark[]>>;
   createdAt: string;
   updatedAt: string;
+  scoringVersion?: string | null;
+  metricDefinitionVersion?: string | null;
+  referenceDataVersion?: string | null;
+  landmarkModelVersion?: string | null;
+  presentationProfile?: AnalysisDetail["presentationProfile"];
+  adultAcknowledged?: boolean | null;
+  distanceProtocol?: AnalysisDetail["distanceProtocol"];
 }
 
 interface LocalPhoto {
@@ -174,6 +181,13 @@ function detail(db: LocalDb, analysis: LocalAnalysis): AnalysisDetail {
     confidence: analysis.confidence,
     errorMessage: analysis.errorMessage,
     detectedLandmarks: analysis.detectedLandmarks,
+    scoringVersion: analysis.scoringVersion ?? null,
+    metricDefinitionVersion: analysis.metricDefinitionVersion ?? null,
+    referenceDataVersion: analysis.referenceDataVersion ?? null,
+    landmarkModelVersion: analysis.landmarkModelVersion ?? null,
+    presentationProfile: analysis.presentationProfile ?? null,
+    adultAcknowledged: analysis.adultAcknowledged ?? null,
+    distanceProtocol: analysis.distanceProtocol ?? null,
     photos: db.photos
       .filter((photo) => photo.analysisId === analysis.id)
       .map((photo) => ({
@@ -284,6 +298,9 @@ export const localStore = {
         detectedLandmarks: {},
         createdAt: now,
         updatedAt: now,
+        presentationProfile: input.presentationProfile ?? "neutral",
+        adultAcknowledged: input.adultAcknowledged ?? null,
+        distanceProtocol: input.distanceProtocol ?? "unknown",
       };
       db.analyses.push(analysis);
       return summary(analysis);
@@ -485,6 +502,13 @@ export const localStore = {
       analysis.qualityNotes = input.qualityNotes;
       analysis.confidence = input.confidence;
       analysis.errorMessage = input.errorMessage ?? null;
+      analysis.scoringVersion = input.scoringVersion ?? analysis.scoringVersion ?? null;
+      analysis.metricDefinitionVersion = input.metricDefinitionVersion ?? null;
+      analysis.referenceDataVersion = input.referenceDataVersion ?? null;
+      analysis.landmarkModelVersion = input.landmarkModelVersion ?? null;
+      analysis.presentationProfile = input.presentationProfile ?? analysis.presentationProfile ?? null;
+      analysis.adultAcknowledged = input.adultAcknowledged ?? analysis.adultAcknowledged ?? null;
+      analysis.distanceProtocol = input.distanceProtocol ?? analysis.distanceProtocol ?? null;
       analysis.updatedAt = now;
       db.metrics = db.metrics.filter((metric) => metric.analysisId !== analysisId);
       for (const metric of input.metrics) {

@@ -53,9 +53,9 @@ export function RangeTrack({
         ) : null}
       </div>
       <div className="mt-1.5 flex justify-between font-mono text-[10px] text-muted">
-        <span>Below usual</span>
-        <span className="font-semibold text-accent">Great</span>
-        <span>Above usual</span>
+        <span>Outside</span>
+        <span className="font-semibold text-accent">Target</span>
+        <span>Outside</span>
       </div>
       <p className="mt-1 text-xs leading-5 text-muted">
         <span className={standing ? standingClass(standing) : undefined}>{summary}</span>

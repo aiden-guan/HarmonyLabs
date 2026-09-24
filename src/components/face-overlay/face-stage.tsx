@@ -3,6 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { MetricOverlay, SemanticLandmark, SemanticLandmarkKey } from "@/types/face";
 import { LANDMARK_GUIDE } from "@/lib/face/semantic-landmarks";
+import { cn } from "@/lib/utils";
+
+const ZOOM_LANDMARKS = new Set<SemanticLandmarkKey>([
+  "leftZygion",
+  "rightZygion",
+  "leftGonion",
+  "rightGonion",
+  "glabella",
+  "nasion",
+  "rhinion",
+  "columella",
+  "subnasale",
+  "sublabiale",
+  "pogonion",
+  "menton",
+  "trichion",
+]);
 
 export function FaceStage({
   src,
@@ -12,6 +29,7 @@ export function FaceStage({
   interactive = false,
   selected,
   overlay,
+  className,
   onSelect,
   onMove,
   onCommit,
@@ -23,6 +41,7 @@ export function FaceStage({
   interactive?: boolean;
   selected?: SemanticLandmarkKey | null;
   overlay?: MetricOverlay | null;
+  className?: string;
   onSelect?: (key: SemanticLandmarkKey) => void;
   onMove?: (key: SemanticLandmarkKey, point: { x: number; y: number }) => void;
   onCommit?: () => void;
@@ -36,6 +55,11 @@ export function FaceStage({
   const [renderedWidth, setRenderedWidth] = useState(0);
   const [coarsePointer, setCoarsePointer] = useState(false);
   const drag = useRef<{ key?: SemanticLandmarkKey; pan?: { x: number; y: number; px: number; py: number } } | null>(null);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+
+  if (width > 0 && height > 0 && (natural.width !== width || natural.height !== height)) {
+    setNatural({ width, height });
+  }
 
   useEffect(() => {
     const query = window.matchMedia("(pointer: coarse)");
@@ -79,8 +103,8 @@ export function FaceStage({
     point.y = event.clientY;
     const local = point.matrixTransform(matrix.inverse());
     return {
-      x: Math.min(1, Math.max(0, local.x / natural.width)),
-      y: Math.min(1, Math.max(0, local.y / natural.height)),
+      x: Math.min(1, Math.max(0, local.x / fittedWidth)),
+      y: Math.min(1, Math.max(0, local.y / fittedHeight)),
     };
   }
 
@@ -97,18 +121,35 @@ export function FaceStage({
     onMove?.(drag.current.key, point);
   }
 
-  const fittedWidth = Math.max(1, natural.width);
-  const fittedHeight = Math.max(1, natural.height);
+  const fittedWidth = Math.max(1, natural.width || width || 1);
+  const fittedHeight = Math.max(1, natural.height || height || 1);
+
+  if (interactive && selected && ZOOM_LANDMARKS.has(selected) && renderedWidth > 0 && focusedKey !== selected) {
+    const landmark = landmarks.find((item) => item.key === selected);
+    if (landmark) {
+      const nextZoom = 2.8;
+      const renderedHeight = renderedWidth * (fittedHeight / fittedWidth);
+      setFocusedKey(selected);
+      setZoom(nextZoom);
+      setPan({
+        x: -nextZoom * (landmark.x - 0.5) * renderedWidth,
+        y: -nextZoom * (landmark.y - 0.5) * renderedHeight,
+      });
+    }
+  }
   const cssRadius = coarsePointer ? (interactive ? 12 : 7) : interactive ? 6 : 4;
   const pointRadius = renderedWidth > 0 ? (cssRadius * fittedWidth) / renderedWidth : interactive ? 8 : 5;
 
   return (
     <div
       ref={frame}
-      className="relative overflow-hidden border border-line bg-[#d5dee6]"
+      className={cn("relative w-full overflow-hidden bg-slate-900", className)}
       style={{ touchAction: interactive ? "none" : "pan-y" }}
     >
-      <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}>
+      <div
+        className="w-full"
+        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
+      >
         <div
           ref={stage}
           className="relative mx-auto"
@@ -125,11 +166,17 @@ export function FaceStage({
           alt=""
           draggable={false}
           className="absolute inset-0 h-full w-full object-contain select-none"
-          onLoad={(event) => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
+          onLoad={(event) => {
+            const nw = event.currentTarget.naturalWidth;
+            const nh = event.currentTarget.naturalHeight;
+            if (nw > 0 && nh > 0) {
+              setNatural({ width: nw, height: nh });
+            }
+          }}
         />
         <svg
           ref={svgRef}
-          viewBox={`0 0 ${natural.width} ${natural.height}`}
+          viewBox={`0 0 ${fittedWidth} ${fittedHeight}`}
           preserveAspectRatio="xMidYMid meet"
           className="absolute inset-0 h-full w-full"
           onPointerDown={(event) => {
@@ -145,16 +192,16 @@ export function FaceStage({
             if (committed) onCommit?.();
           }}
         >
-          <Registration width={natural.width} height={natural.height} />
-          {overlay ? <OverlayDrawing overlay={overlay} landmarks={landmarks} width={natural.width} height={natural.height} /> : null}
+          <Registration width={fittedWidth} height={fittedHeight} />
+          {overlay ? <OverlayDrawing overlay={overlay} landmarks={landmarks} width={fittedWidth} height={fittedHeight} /> : null}
           {landmarks.map((landmark) => {
             const active = landmark.key === selected;
             return (
               <circle
                 key={landmark.key}
                 data-landmark={landmark.key}
-                cx={landmark.x * natural.width}
-                cy={landmark.y * natural.height}
+                cx={landmark.x * fittedWidth}
+                cy={landmark.y * fittedHeight}
                 r={active ? pointRadius * 1.35 : pointRadius}
                 fill={active ? "#1c4e6e" : "#f7f9fb"}
                 stroke="#1c4e6e"

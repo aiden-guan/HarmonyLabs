@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { METRICS } from "@/lib/face/metrics";
-import { formatLongWhen, formatMetricValue, formatScore } from "@/lib/format";
+import { formatLongWhen, formatMetricValue, formatRange, formatScore } from "@/lib/format";
+import { confidenceLabel, evidenceBadge } from "@/lib/face/scoring/resolve-evidence";
 import type { AnalysisDetail, StoredMetric } from "@/lib/data/model";
 import type { FaceView, MetricCategory, SemanticLandmark } from "@/types/face";
 import { CATEGORY_LABELS } from "@/types/face";
@@ -146,7 +147,7 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
                 {/* Primary Harmony Score */}
                 <div>
                   <span className="font-mono text-xs uppercase tracking-[0.14em] text-accent font-semibold block">
-                    Proportional harmony
+                    Harmony
                   </span>
                   <div className="mt-1 flex items-baseline gap-1.5 font-mono">
                     <span className="text-4xl sm:text-5xl font-bold text-ink tracking-tight">
@@ -157,7 +158,7 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
                     ) : null}
                   </div>
                   <p className="mt-1 text-xs text-muted leading-tight">
-                    Geometric reference score, not attractiveness.
+                    Research-informed facial proportional score.
                   </p>
                 </div>
 
@@ -175,7 +176,7 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
                     ) : null}
                   </div>
                   <span className="mt-1 text-xs text-muted block">
-                    62% of composite score
+                    Front view, reported separately
                   </span>
                 </div>
 
@@ -193,10 +194,24 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
                     ) : null}
                   </div>
                   <span className="mt-1 text-xs text-muted block">
-                    38% of composite score
+                    Profile view, reported separately
                   </span>
                 </div>
               </div>
+              <details className="mt-4 text-xs text-muted leading-relaxed">
+                <summary className="cursor-pointer font-medium text-ink">How Harmony is built</summary>
+                <p className="mt-2">
+                  MogLabs compares reproducible facial measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence on Harmony.
+                </p>
+                <p className="mt-2">
+                  Some references come from direct attractiveness experiments, while others come from established aesthetic or anthropometric research. Evidence strength is shown for each measurement. Harmony is not a clinical diagnosis and not a universal mathematical face.
+                </p>
+                {analysis.scoringVersion && analysis.scoringVersion !== "harmony-v2" ? (
+                  <p className="mt-2">This report is stored as {analysis.scoringVersion}. It was not rewritten with Harmony V2.</p>
+                ) : (
+                  <p className="mt-2">Scoring version {analysis.scoringVersion ?? "harmony-v2"}.</p>
+                )}
+              </details>
             </div>
 
             {/* Action Buttons Toolbar */}
@@ -628,6 +643,75 @@ function MeasurementsPanel({
   );
 }
 
+function MetricEvidencePanel({
+  metric,
+  scoringVersion,
+}: {
+  metric: StoredMetric & { definition?: (typeof METRICS)[number] };
+  scoringVersion?: string | null;
+}) {
+  const evidence = metric.definition?.evidence;
+  const currentModel = !scoringVersion || scoringVersion === "harmony-v2";
+  const unit = metric.unit;
+  const target = evidence?.bands.neutral.aestheticTarget;
+  const population = evidence?.bands.neutral.populationRange;
+  const source = evidence?.references[0];
+  return (
+    <div className="rounded-md border border-line bg-panel-muted p-3 text-xs space-y-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge variant="outline">{evidence ? evidenceBadge(evidence) : "Stored measurement"}</Badge>
+        <span className="font-mono text-muted">
+          Measurement confidence: {confidenceLabel(metric.measurementConfidence) ?? "—"}
+        </span>
+      </div>
+      <div className="flex justify-between font-mono">
+        <span className="text-muted">Measured:</span>
+        <span className="font-bold text-ink">{formatMetricValue(metric.value, unit)}</span>
+      </div>
+      {currentModel && target ? (
+        <div className="flex justify-between font-mono">
+          <span className="text-muted">Aesthetic target:</span>
+          <span className="text-ink">{formatRange(target.min, target.max, unit)}</span>
+        </div>
+      ) : null}
+      <div className="flex justify-between font-mono">
+        <span className="text-muted">Harmony range:</span>
+        <span className="text-ink">{formatRange(metric.referenceMin, metric.referenceMax, unit)}</span>
+      </div>
+      {currentModel && population ? (
+        <div className="flex justify-between font-mono">
+          <span className="text-muted">Population range:</span>
+          <span className="text-ink">{formatRange(population.min, population.max, unit)}</span>
+        </div>
+      ) : null}
+      <div className="flex justify-between font-mono">
+        <span className="text-muted">Contribution:</span>
+        <span className="text-ink">{metric.contribution === null || metric.contribution === undefined ? "—" : formatScore(metric.contribution)}</span>
+      </div>
+      {!currentModel ? (
+        <p className="text-[11px] leading-relaxed text-muted">
+          This analysis is stored as {scoringVersion ?? "harmony-v1"}. The narrative below is the current Harmony V2 definition and was not used to produce the stored score.
+        </p>
+      ) : null}
+      {evidence ? (
+        <div className="space-y-1 border-t border-line/60 pt-1.5 text-[11px] leading-relaxed text-muted">
+          <p><span className="font-medium text-ink/80">Source population:</span> {evidence.sourcePopulation}</p>
+          {source ? (
+            <p>
+              <span className="font-medium text-ink/80">Research reference:</span> {source.authors ? `${source.authors} (${source.year}). ` : `${source.year}. `}
+              {source.title}
+              {source.pmid ? ` PMID ${source.pmid}.` : ""}
+              {source.doi ? ` DOI ${source.doi}.` : ""}
+            </p>
+          ) : null}
+          <p><span className="font-medium text-ink/80">Formula:</span> {metric.definition?.formula}</p>
+          {evidence.limitations[0] ? <p><span className="font-medium text-ink/80">Limitation:</span> {evidence.limitations[0]}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MetricDetailCard({
   analysis,
   metric,
@@ -666,6 +750,7 @@ function MetricDetailCard({
         {photo ? (
           <div className="rounded-lg border border-line bg-slate-900 overflow-hidden shadow-inner">
             <FaceStage
+              key={`${analysis.id}-${metric.metricId}-${view}`}
               src={`/api/analyses/${analysis.id}/photos/${view}`}
               width={photo.width}
               height={photo.height}
@@ -679,23 +764,7 @@ function MetricDetailCard({
           <p className="text-xs text-signal p-4 text-center">Photo unavailable.</p>
         )}
 
-        <div className="rounded-md border border-line bg-panel-muted p-3 text-xs space-y-1.5">
-          <div className="flex justify-between font-mono">
-            <span className="text-muted">Measured:</span>
-            <span className="font-bold text-ink">{formatMetricValue(metric.value, metric.unit)}</span>
-          </div>
-          <div className="flex justify-between font-mono">
-            <span className="text-muted">Literature Ideal:</span>
-            <span className="text-ink">
-              {formatMetricValue(metric.definition.referenceRange.idealMin, metric.unit)} – {formatMetricValue(metric.definition.referenceRange.idealMax, metric.unit)}
-            </span>
-          </div>
-          {metric.definition.referenceRange.source ? (
-            <div className="pt-1.5 border-t border-line/60 text-[11px] text-muted leading-relaxed">
-              <span className="font-medium text-ink/80">Reference source:</span> {metric.definition.referenceRange.source}
-            </div>
-          ) : null}
-        </div>
+        <MetricEvidencePanel metric={metric} scoringVersion={analysis.scoringVersion} />
       </CardContent>
     </Card>
   );
@@ -725,7 +794,10 @@ function PhotosPanel({
         <div className="inline-flex rounded-md border border-line bg-panel-muted p-1 text-xs">
           <button
             type="button"
-            onClick={() => setView("front")}
+            onClick={() => {
+              setView("front");
+              setSelectedMetricId("none");
+            }}
             className={cn(
               "rounded-[4px] px-3.5 py-1.5 font-medium transition-colors",
               view === "front" ? "bg-panel text-accent font-semibold shadow-xs" : "text-muted hover:text-ink",
@@ -735,7 +807,10 @@ function PhotosPanel({
           </button>
           <button
             type="button"
-            onClick={() => setView("profile")}
+            onClick={() => {
+              setView("profile");
+              setSelectedMetricId("none");
+            }}
             className={cn(
               "rounded-[4px] px-3.5 py-1.5 font-medium transition-colors",
               view === "profile" ? "bg-panel text-accent font-semibold shadow-xs" : "text-muted hover:text-ink",
@@ -767,8 +842,9 @@ function PhotosPanel({
 
       {/* Main Photographic Stage */}
       {photo ? (
-        <div className="rounded-xl border border-line bg-slate-900 p-2 sm:p-4 flex items-center justify-center overflow-hidden shadow-xs">
+        <div className="rounded-xl border border-line bg-slate-900 overflow-hidden shadow-xs">
           <FaceStage
+            key={`${analysis.id}-${view}`}
             src={`/api/analyses/${analysis.id}/photos/${view}`}
             width={photo.width}
             height={photo.height}

@@ -28,6 +28,13 @@ export const photoQualitySchema = z
     warnings: z.array(z.string().max(400)).max(20),
     notes: z.array(z.string().max(400)).max(8).optional(),
     mirrored: z.boolean(),
+    captureGrade: z.enum(["measurement-grade", "good", "limited"]).optional(),
+    distanceProtocol: z.enum(["followed", "not-followed", "unknown"]).optional(),
+    perspectiveRisk: z.boolean().optional(),
+    frameCount: z.number().int().min(0).max(40).optional(),
+    landmarkDispersion: z.number().finite().nullable().optional(),
+    radialCorrectionApplied: z.boolean().optional(),
+    expressionNeutral: z.boolean().nullable().optional(),
   })
   .strict();
 
@@ -57,6 +64,9 @@ export const chatSchema = z
 export const createAnalysisSchema = z
   .object({
     name: z.string().trim().max(80).optional(),
+    adultAcknowledged: z.boolean().optional(),
+    presentationProfile: z.enum(["neutral", "masculine", "feminine"]).optional(),
+    distanceProtocol: z.enum(["followed", "not-followed", "unknown"]).optional(),
   })
   .strict();
 

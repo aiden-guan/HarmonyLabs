@@ -16,7 +16,12 @@ export async function POST(request: Request) {
   const parsed = createAnalysisSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return jsonError("Enter a shorter analysis name.", 400);
   const name = parsed.data.name || defaultName();
-  const analysis = await getStore().createAnalysis(caller.id, { name });
+  const analysis = await getStore().createAnalysis(caller.id, {
+    name,
+    adultAcknowledged: parsed.data.adultAcknowledged,
+    presentationProfile: parsed.data.presentationProfile,
+    distanceProtocol: parsed.data.distanceProtocol,
+  });
   return Response.json({ analysis, isGuest: caller.isGuest }, { status: 201 });
 }
 

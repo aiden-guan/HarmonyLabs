@@ -199,7 +199,7 @@ export default function HomePage() {
                       <span className="font-mono text-sm text-muted">/ 10</span>
                     </div>
                     <p className="mt-2 text-xs text-muted leading-relaxed">
-                      Proportional reference score calculated from 62% Front harmony and 38% Profile harmony.
+                      Research-informed facial proportional score. Front and profile stay visible separately. Stronger evidence receives greater influence.
                     </p>
                   </div>
 
@@ -252,7 +252,7 @@ export default function HomePage() {
                       <div className="rounded-md border border-good/20 bg-good/5 p-3">
                         <span className="font-medium text-good block mb-1">Closest to reference</span>
                         <p className="text-ink font-semibold">Midface ratio: 1.02</p>
-                        <p className="text-muted mt-0.5">Falls within the ideal 1.00–1.05 anthropological reference interval.</p>
+                        <p className="text-muted mt-0.5">Shown against its aesthetic target and harmony range, with the evidence tier beside the number.</p>
                       </div>
 
                       <div className="rounded-md border border-line bg-slate-50 p-3">
@@ -291,7 +291,7 @@ export default function HomePage() {
               {[
                 {
                   title: "MediaPipe Vision Mesh",
-                  desc: "Landmarks are localized client-side in your browser using an 8-bit quantized face landmarker. Coordinates are normalized to eliminate image scaling artifacts.",
+                  desc: "Landmarks are localized client-side with a pinned MediaPipe Face Landmarker (float16, task version 1). Coordinates stay on the photograph. Face photos are not sent to a language model.",
                 },
                 {
                   title: "Frankfort Horizontal Leveling",
@@ -303,7 +303,7 @@ export default function HomePage() {
                 },
                 {
                   title: "Transparent Weighting",
-                  desc: "The overall Harmony score is a visible weighted sum (62% front, 38% profile). Every category and metric contribution is fully inspectable.",
+                  desc: "Harmony is an evidence-weighted comparison of facial geometry. Front and profile stay visible separately. Every measurement shows its evidence tier and contribution.",
                 },
               ].map((item) => (
                 <div key={item.title} className="rounded-lg border border-line bg-panel p-5">

@@ -11,10 +11,10 @@ export interface MeasurementScale {
 export type RangeStanding = "great" | "average" | "low" | "high";
 
 export const STANDING_LABEL: Record<RangeStanding, string> = {
-  great: "Great",
-  average: "Average",
-  low: "Below usual",
-  high: "Above usual",
+  great: "Within target",
+  average: "Near target",
+  low: "Outside reference",
+  high: "Outside reference",
 };
 
 export function measurementScale(
@@ -48,14 +48,13 @@ export function rangeSummary(
   const ideal = formatRange(scale.idealMin, scale.idealMax, unit);
   const usual = formatRange(scale.min, scale.max, unit);
   if (standing === "great") {
-    return `Ideal is ${ideal}. Usual is ${usual}. This result is in the ideal range.`;
+    return `Aesthetic target is ${ideal}. Harmony range is ${usual}. This result is within target.`;
   }
   if (standing === "average") {
-    const side = value < scale.idealMin ? "on the low side of ideal" : "on the high side of ideal";
-    return `Usual is ${usual}. Ideal is ${ideal}. This result is inside the usual range, ${side}.`;
+    return `Harmony range is ${usual}. Aesthetic target is ${ideal}. This result is near target.`;
   }
   if (standing === "low") {
-    return `Usual is ${usual}. Ideal is ${ideal}. This result is below the usual range.`;
+    return `Harmony range is ${usual}. Aesthetic target is ${ideal}. This result is outside reference.`;
   }
-  return `Usual is ${usual}. Ideal is ${ideal}. This result is above the usual range.`;
+  return `Harmony range is ${usual}. Aesthetic target is ${ideal}. This result is outside reference.`;
 }

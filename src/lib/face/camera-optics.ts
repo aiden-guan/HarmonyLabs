@@ -13,10 +13,10 @@ export interface DeviceSignals {
 }
 
 /**
- * Approximate Brown–Conrady model.
- * `longEdgeFov` is the field of view across the longer image side.
- * Positive `k1` is barrel distortion: the wide lens pushes features outward,
- * and the correction pulls them back toward the optical center.
+ * Estimated radial (Brown–Conrady) distortion.
+ * This pulls wide-lens barrel distortion back toward the optical center.
+ * It does not undo perspective enlargement from holding the camera close to the face.
+ * That requires a longer subject distance, about 1.2–1.5 m (4–5 ft).
  */
 export interface LensModel {
   device: DeviceClass;
@@ -72,9 +72,9 @@ export function lensForDevice(device: DeviceClass): LensModel {
 
 export function cameraProfileNote(device: DeviceClass): string {
   if (device === "mobile") {
-    return "Phone camera. The preview keeps the sensor shape, and the saved photo is corrected for the wide front lens.";
+    return "Phone camera. Radial lens distortion can be reduced. Perspective from a close selfie cannot. Step back to about 4–5 ft (1.2–1.5 m) and crop instead of holding the phone near your face.";
   }
-  return "Desk camera. A light correction is applied for a typical webcam lens.";
+  return "Desk camera. A light radial correction is applied. It does not replace a standardized camera distance.";
 }
 
 /** Constraints follow the device and how it is held, without requiring an exact size. */

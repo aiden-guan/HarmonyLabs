@@ -5,7 +5,8 @@ import { lipMetrics } from "@/lib/face/metrics/lips";
 import { noseMetrics } from "@/lib/face/metrics/nose";
 import { profileMetrics } from "@/lib/face/metrics/profile";
 import { symmetryMetrics } from "@/lib/face/metrics/symmetry";
-import { referenceRanges } from "@/lib/face/scoring/reference-ranges";
+import { evidenceRegistry } from "@/lib/face/scoring/evidence-registry";
+import { evidenceWeight } from "@/lib/face/scoring/weights";
 import type {
   FacialMetricDefinition,
   MetricOverlay,
@@ -47,32 +48,54 @@ export function assertCatalogIntegrity(): void {
   if (new Set(ids).size !== ids.length) {
     throw new Error("Duplicate facial metric id");
   }
-  const rangeIds = Object.keys(referenceRanges);
-  for (const id of rangeIds) {
-    if (!ids.includes(id)) throw new Error(`Reference range ${id} has no metric`);
+  const evidenceIds = Object.keys(evidenceRegistry);
+  for (const id of evidenceIds) {
+    if (!ids.includes(id)) throw new Error(`Evidence entry ${id} has no metric`);
   }
   for (const metric of METRICS) {
-    if (!referenceRanges[metric.id]) {
-      throw new Error(`Missing reference range for ${metric.id}`);
-    }
+    const evidence = evidenceRegistry[metric.id];
+    if (!evidence) throw new Error(`Missing evidence for ${metric.id}`);
+    if (evidence.metricId !== metric.id) throw new Error(`Evidence id mismatch for ${metric.id}`);
+    if (evidence.group !== metric.featureGroup) throw new Error(`Feature group mismatch for ${metric.id}`);
     if (!metric.label || !metric.formula || !metric.explanation || !metric.normalization) {
       throw new Error(`Incomplete copy for ${metric.id}`);
     }
     if (metric.requiredLandmarks.length === 0) {
       throw new Error(`No landmarks for ${metric.id}`);
     }
-    if (!(metric.scoring.weight > 0) || !(metric.scoring.sigma > 0)) {
-      throw new Error(`Invalid scoring parameters for ${metric.id}`);
-    }
+    if (!(metric.scoring.sigma > 0)) throw new Error(`Invalid sigma for ${metric.id}`);
     if (metric.referenceRange.max < metric.referenceRange.min) {
       throw new Error(`Inverted range for ${metric.id}`);
     }
     if (
-      metric.referenceRange.idealMin < metric.referenceRange.min ||
-      metric.referenceRange.idealMax > metric.referenceRange.max ||
+      metric.referenceRange.idealMin < metric.referenceRange.min - 1e-6 ||
+      metric.referenceRange.idealMax > metric.referenceRange.max + 1e-6 ||
       metric.referenceRange.idealMax < metric.referenceRange.idealMin
     ) {
-      throw new Error(`Ideal band sits outside the usual range for ${metric.id}`);
+      throw new Error(`Aesthetic band sits outside the harmony range for ${metric.id}`);
+    }
+    if (evidence.scoreEligible) {
+      if (evidence.references.length < 1) throw new Error(`Score-eligible ${metric.id} has no references`);
+      if (evidence.evidenceTier === 4 || evidence.evidenceType === "unsupported") {
+        throw new Error(`Score-eligible ${metric.id} is unsupported`);
+      }
+      if (!(evidenceWeight(evidence.evidenceTier, evidence.evidenceLevel) > 0)) {
+        throw new Error(`Score-eligible ${metric.id} has zero evidence weight`);
+      }
+      if (!evidence.sourcePopulation || evidence.limitations.length === 0) {
+        throw new Error(`Score-eligible ${metric.id} is missing provenance`);
+      }
+      if (!(evidence.measurementReliability > 0) || !(evidence.formulaCompatibility > 0)) {
+        throw new Error(`Score-eligible ${metric.id} is missing reliability`);
+      }
+      if (evidence.formulaCompatibilityNotes.length === 0 || evidence.accuracyBudget.length === 0) {
+        throw new Error(`Score-eligible ${metric.id} is missing formula or accuracy notes`);
+      }
+    } else if (evidenceWeight(evidence.evidenceTier, evidence.evidenceLevel) > 0 && evidence.evidenceTier === 4) {
+      throw new Error(`Unsupported ${metric.id} has a positive tier weight`);
+    }
+    if (!evidence.scoreEligible && metric.scoring.weight !== 0) {
+      throw new Error(`Informational ${metric.id} must not carry a Harmony weight`);
     }
     const required = new Set(metric.requiredLandmarks);
     for (const key of overlayKeys(metric.overlay)) {

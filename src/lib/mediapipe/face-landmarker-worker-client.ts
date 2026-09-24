@@ -1,3 +1,4 @@
+import type { ExpressionSignals } from "@/lib/face/expression-qc";
 import type { FacialMatrix } from "@/lib/face/facial-transform";
 import type { RawFaceLandmark } from "@/types/face";
 
@@ -14,12 +15,14 @@ interface DetectResponse {
   ok: boolean;
   faces?: RawFaceLandmark[][];
   transforms?: FacialMatrix[];
+  expression?: ExpressionSignals | null;
   error?: string;
 }
 
 export interface StillDetection {
   faces: RawFaceLandmark[][];
   transforms: FacialMatrix[];
+  expression?: ExpressionSignals | null;
 }
 
 export interface StillDetectorClient {
@@ -78,7 +81,7 @@ export function createStillDetectorClient(options: {
         request.reject(new Error(data.error ?? "Face detection failed"));
         return;
       }
-      request.resolve({ faces: data.faces, transforms: data.transforms ?? [] });
+      request.resolve({ faces: data.faces, transforms: data.transforms ?? [], expression: data.expression ?? null });
     };
     created.onerror = () => {
       failAll(new Error("The face landmarker worker failed."));

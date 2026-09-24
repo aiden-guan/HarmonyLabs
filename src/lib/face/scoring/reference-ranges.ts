@@ -63,11 +63,9 @@ function span(
 }
 
 /**
- * Central reference configuration.
- * The usual band is what scores 10. The ideal band is the middle of that
- * range, or the low end when smaller means more symmetric.
- * Replace entries later with literature-derived, sex-specific, or age-specific
- * tables without changing metric formulas.
+ * Frozen Harmony V1 bands. `runMeasurementPipelineV1` is the only consumer.
+ * V2 scoring reads `evidence-registry.ts`. These experimental limits do not
+ * affect new Harmony scores.
  */
 export const referenceRanges: Record<string, ReferenceConfig> = {
   "facial-width-height": inset(

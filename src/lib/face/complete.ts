@@ -1,7 +1,15 @@
 import { measurementConfidence } from "@/lib/face/quality";
-import { runMeasurementPipeline } from "@/lib/face/pipeline";
+import { runMeasurementPipeline, type CaptureScoringContext } from "@/lib/face/pipeline";
+import {
+  LANDMARK_MODEL_VERSION,
+  METRIC_DEFINITION_VERSION,
+  REFERENCE_DATA_VERSION,
+  SCORING_VERSION,
+} from "@/lib/face/versions";
 import type { ResultSaveInput, StoredMetric } from "@/lib/data/model";
-import type { PhotoQuality, SemanticLandmark, SemanticLandmarkMap } from "@/types/face";
+import type { FaceView, PhotoQuality, SemanticLandmark, SemanticLandmarkMap } from "@/types/face";
+
+type QualityWithView = PhotoQuality & { view?: FaceView };
 
 function toMap(landmarks: SemanticLandmark[]): SemanticLandmarkMap {
   const map: SemanticLandmarkMap = {};
@@ -12,11 +20,22 @@ function toMap(landmarks: SemanticLandmark[]): SemanticLandmarkMap {
 export function completeAnalysis(input: {
   front: SemanticLandmark[];
   profile: SemanticLandmark[];
-  qualities: PhotoQuality[];
+  qualities: QualityWithView[];
+  capture?: CaptureScoringContext;
 }): ResultSaveInput {
+  const frontPhoto = input.qualities.find((quality) => quality.view === "front");
+  const profilePhoto = input.qualities.find((quality) => quality.view === "profile");
   const report = runMeasurementPipeline({
     front: toMap(input.front),
     profile: toMap(input.profile),
+    capture: {
+      presentation: input.capture?.presentation,
+      adultAcknowledged: input.capture?.adultAcknowledged,
+      distanceProtocol: input.capture?.distanceProtocol ?? frontPhoto?.distanceProtocol,
+      frontGrade: frontPhoto?.captureGrade,
+      profileGrade: profilePhoto?.captureGrade,
+      perspectiveRisk: Boolean(frontPhoto?.perspectiveRisk || profilePhoto?.perspectiveRisk),
+    },
   });
   const metrics: StoredMetric[] = report.metrics.map((metric) => ({
     metricId: metric.id,
@@ -28,6 +47,11 @@ export function completeAnalysis(input: {
     unit: metric.unit,
     category: metric.category,
     view: metric.view,
+    evidenceTier: metric.evidenceTier,
+    evidenceLabel: metric.evidenceLabel,
+    scoreEligible: metric.scoreEligible,
+    measurementConfidence: metric.measurementConfidence,
+    contribution: metric.impact,
   }));
   const notes = [
     ...new Set(
@@ -50,6 +74,17 @@ export function completeAnalysis(input: {
     qualityNotes: notes,
     confidence: failed ? null : measurementConfidence(input.qualities),
     metrics,
-    errorMessage: failed ? "The landmarks did not produce a Harmony score." : null,
+    errorMessage: failed
+      ? report.adultScoringWithheld
+        ? "Harmony scoring is withheld until the analysis is confirmed as an adult."
+        : "The landmarks did not produce a Harmony score."
+      : null,
+    scoringVersion: SCORING_VERSION,
+    metricDefinitionVersion: METRIC_DEFINITION_VERSION,
+    referenceDataVersion: REFERENCE_DATA_VERSION,
+    landmarkModelVersion: LANDMARK_MODEL_VERSION,
+    presentationProfile: report.presentation,
+    adultAcknowledged: input.capture?.adultAcknowledged ?? true,
+    distanceProtocol: input.capture?.distanceProtocol ?? frontPhoto?.distanceProtocol ?? null,
   };
 }

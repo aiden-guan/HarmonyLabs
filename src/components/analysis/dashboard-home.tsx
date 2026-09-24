@@ -176,7 +176,7 @@ export function DashboardHome({ analyses }: { analyses: AnalysisSummary[] }) {
                           <span className="text-xs text-muted">/ 10</span>
                         </div>
                         <span className="text-[11px] text-muted hidden sm:block mt-1">
-                          62% weighting
+                          Reported separately
                         </span>
                       </div>
 
@@ -191,7 +191,7 @@ export function DashboardHome({ analyses }: { analyses: AnalysisSummary[] }) {
                           <span className="text-xs text-muted">/ 10</span>
                         </div>
                         <span className="text-[11px] text-muted hidden sm:block mt-1">
-                          38% weighting
+                          Reported separately
                         </span>
                       </div>
                     </div>

@@ -283,6 +283,13 @@ export function evaluatePhotoQuality(input: {
     );
   }
 
+  const grade = captureGradeFor(input);
+  const perspectiveRisk =
+    input.faceCoverage > 0.5 || (input.facialHeight != null && input.facialHeight > 0.7);
+  const notes = [...(input.view === "front" && perspectiveRisk
+    ? ["Perspective distortion risk. A phone at arm's length enlarges the nose. Step back to about 4–5 ft (1.2–1.5 m) when you can."]
+    : [])];
+
   return {
     hardError,
     quality: {
@@ -295,9 +302,53 @@ export function evaluatePhotoQuality(input: {
       brightnessScore: input.brightnessScore,
       faceCoverage: input.faceCoverage,
       warnings,
+      notes,
       mirrored: input.mirrored,
+      captureGrade: grade,
+      perspectiveRisk,
     },
   };
+}
+
+function within(value: number | null, limit: number): boolean {
+  return value !== null && Math.abs(value) <= limit;
+}
+
+function captureGradeFor(input: {
+  view: FaceView;
+  pose: PoseEstimate;
+  orientation?: HeadOrientation | null;
+  profileCue?: ProfileShapeCue;
+  blurScore: number;
+  facialHeight?: number | null;
+  faceCoverage: number;
+}): import("@/types/face").CaptureGrade {
+  const yaw = input.orientation?.yaw ?? input.pose.yaw;
+  const pitch = input.orientation?.pitch ?? input.pose.pitch;
+  const roll = input.pose.roll;
+  const sharp = input.blurScore >= 0.45;
+  const close = input.faceCoverage > 0.5 || (input.facialHeight != null && input.facialHeight > 0.7);
+  if (input.view === "profile") {
+    const cue = input.profileCue ?? { eyeCollapse: null, noseLead: null };
+    const orientation: HeadOrientation = input.orientation ?? {
+      yaw,
+      pitch,
+      roll,
+      source: "geometry",
+    };
+    const reading = classifyCapturePose(orientation, cue, false);
+    const collapse = cue.eyeCollapse ?? 0;
+    if (reading.side && reading.ideal && !reading.sideBorderline && collapse >= 0.78 && sharp && !close) {
+      return "measurement-grade";
+    }
+    if (reading.side && !reading.sideBorderline) return "good";
+    return "limited";
+  }
+  const tight = within(yaw, 4) && within(pitch, 4) && within(roll, 4);
+  const good = within(yaw, 8) && within(pitch, 8) && within(roll, 8);
+  if (tight && sharp && !close) return "measurement-grade";
+  if (good) return "good";
+  return "limited";
 }
 
 export function measurementConfidence(

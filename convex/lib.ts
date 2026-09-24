@@ -73,6 +73,13 @@ export async function analysisDetail(ctx: ReadCtx, analysis: Doc<"analyses">) {
     })),
     landmarks: analysis.landmarks,
     metrics: analysis.metrics,
+    scoringVersion: analysis.scoringVersion ?? null,
+    metricDefinitionVersion: analysis.metricDefinitionVersion ?? null,
+    referenceDataVersion: analysis.referenceDataVersion ?? null,
+    landmarkModelVersion: analysis.landmarkModelVersion ?? null,
+    presentationProfile: analysis.presentationProfile ?? null,
+    adultAcknowledged: analysis.adultAcknowledged ?? null,
+    distanceProtocol: analysis.distanceProtocol ?? null,
     messages: messages.map((message) => ({
       id: message._id,
       role: message.role,

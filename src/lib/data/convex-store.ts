@@ -5,7 +5,7 @@ import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { SessionUser } from "@/lib/auth/session";
-import type { PhotoSaveInput, ResultSaveInput, StoredMessage } from "@/lib/data/model";
+import type { CreateAnalysisInput, PhotoSaveInput, ResultSaveInput, StoredMessage } from "@/lib/data/model";
 import type { FaceView, PhotoQuality, SemanticLandmark } from "@/types/face";
 
 async function authed() {
@@ -48,19 +48,21 @@ export const convexStore = {
     return fetchQuery(api.analyses.get, { analysisId }, await authed());
   },
 
-  async createAnalysis(userId: string, input: { name: string; isSample?: boolean }) {
+  async createAnalysis(userId: string, input: CreateAnalysisInput) {
+    const payload = {
+      name: input.name,
+      isSample: input.isSample,
+      adultAcknowledged: input.adultAcknowledged,
+      presentationProfile: input.presentationProfile,
+      distanceProtocol: input.distanceProtocol,
+    };
     if (isGuest(userId)) {
       return fetchMutation(api.analyses.create, {
-        name: input.name,
-        isSample: input.isSample,
+        ...payload,
         guestId: userId,
       });
     }
-    return fetchMutation(
-      api.analyses.create,
-      { name: input.name, isSample: input.isSample },
-      await authed(),
-    );
+    return fetchMutation(api.analyses.create, payload, await authed());
   },
 
   async claimGuestAnalyses(guestId: string, _authenticatedUserId: string): Promise<number> {

@@ -12,6 +12,8 @@ export async function POST() {
   const analysis = await store.createAnalysis(caller.id, {
     name: "Geometric sample",
     isSample: true,
+    adultAcknowledged: true,
+    presentationProfile: "neutral",
   });
   for (const view of ["front", "profile"] as FaceView[]) {
     const portrait = renderSamplePortrait(view);

@@ -88,7 +88,7 @@ export const profileMetrics: FacialMetricDefinition[] = [
     formula: "distance from pronasale to line(nasion, subnasale) / distance(nasion, pronasale)",
     normalization: NORMALIZATION.segmentRatio,
     explanation:
-      "How far the nose tip stands off the nasion–subnasale line, relative to dorsum length. This is a 2D construction, not Goode's clinical ratio.",
+      "MogLabs tip offset: how far pronasale stands off the nasion–subnasale line, relative to nasion–pronasale length. This is not Goode's ratio, and it is not part of Harmony.",
     overlay: { type: "line", points: ["nasion", "subnasale", "pronasale"] },
     calculate: (map) => nasalProjectionRatio(map),
   }),

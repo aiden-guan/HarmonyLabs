@@ -1,3 +1,4 @@
+import { checkNeutralExpression, type ExpressionSignals } from "@/lib/face/expression-qc";
 import { extractFacialOrientation, type FacialMatrix } from "@/lib/face/facial-transform";
 import { planFrankfortLevel, rotateRawLandmarks } from "@/lib/face/frankfort";
 import { mapLandmarks } from "@/lib/face/mediapipe-map";
@@ -30,6 +31,7 @@ export function interpretDetection(input: {
   height?: number;
   /** Matrix from the same detection that produced `faces`, when the landmarker returned one. */
   transform?: FacialMatrix | null;
+  expression?: ExpressionSignals | null;
 }): InterpretedPhoto {
   const faceCount = input.faces.length;
   const primary = input.faces[0] ?? [];
@@ -69,6 +71,11 @@ export function interpretDetection(input: {
       ...(evaluated.quality.notes ?? []),
       "The profile was leveled slightly so the head sits closer to horizontal.",
     ];
+  }
+  const expression = checkNeutralExpression(input.expression);
+  evaluated.quality.expressionNeutral = expression.neutral;
+  if (expression.warnings.length > 0) {
+    evaluated.quality.notes = [...(evaluated.quality.notes ?? []), ...expression.warnings];
   }
   const landmarks = evaluated.hardError || raw.length === 0 ? [] : Object.values(mapLandmarks(raw, input.view)).filter((item): item is SemanticLandmark => Boolean(item));
   return { hardError: evaluated.hardError, landmarks, quality: evaluated.quality, levelRadians: level.radians };

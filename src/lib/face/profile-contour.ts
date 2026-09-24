@@ -68,7 +68,25 @@ function anteriorEnvelope(points: ContourPoint[], bins = 48): ContourPoint[] {
     }
     envelope.push(best);
   }
-  return suppressSpikes(envelope, minY, height);
+  return smoothEnvelope(suppressSpikes(envelope, minY, height));
+}
+
+/**
+ * Five-point quadratic Savitzky–Golay on the anterior x coordinate.
+ * The window is short so the nose tip, lip, and chin fold stay in place.
+ * Coefficients for a window of 5 and polynomial order 2: [-3, 12, 17, 12, -3] / 35.
+ */
+function smoothEnvelope(envelope: ContourPoint[]): ContourPoint[] {
+  if (envelope.length < 7) return envelope;
+  const kernel = [-3, 12, 17, 12, -3];
+  return envelope.map((point, index) => {
+    if (index < 2 || index > envelope.length - 3) return point;
+    let x = 0;
+    for (let offset = -2; offset <= 2; offset += 1) {
+      x += kernel[offset + 2] * envelope[index + offset].x;
+    }
+    return { ...point, x: x / 35 };
+  });
 }
 
 /**

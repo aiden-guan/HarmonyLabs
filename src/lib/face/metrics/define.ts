@@ -1,23 +1,30 @@
-import { referenceRanges } from "@/lib/face/scoring/reference-ranges";
+import { evidenceFor } from "@/lib/face/scoring/evidence-registry";
+import { evidenceWeight } from "@/lib/face/scoring/weights";
 import type { FacialMetricDefinition } from "@/types/face";
 
 export function withReference(
-  definition: Omit<FacialMetricDefinition, "referenceRange" | "scoring">,
+  definition: Omit<FacialMetricDefinition, "referenceRange" | "scoring" | "featureGroup" | "evidence">,
 ): FacialMetricDefinition {
-  const config = referenceRanges[definition.id];
-  if (!config) {
-    throw new Error(`Missing reference range for ${definition.id}`);
-  }
+  const evidence = evidenceFor(definition.id);
+  const bands = evidence.bands.neutral;
+  const harm = bands.harmoniousRange;
+  const aesthetic = bands.aestheticTarget;
+  const weight = evidence.scoreEligible ? evidenceWeight(evidence.evidenceTier, evidence.evidenceLevel) : 0;
   return {
     ...definition,
+    featureGroup: evidence.group,
+    evidence,
     referenceRange: {
-      min: config.min,
-      max: config.max,
-      idealMin: config.idealMin,
-      idealMax: config.idealMax,
-      source: config.source,
-      confidence: config.confidence,
+      min: harm.min,
+      max: harm.max,
+      idealMin: aesthetic?.min ?? harm.min,
+      idealMax: aesthetic?.max ?? harm.max,
+      source: evidence.limitations[0] ?? evidence.sourcePopulation,
+      confidence: evidence.scoreEligible ? "literature" : "informational",
     },
-    scoring: { sigma: config.sigma, weight: config.weight },
+    scoring: {
+      sigma: bands.sigmaHigh,
+      weight,
+    },
   };
 }

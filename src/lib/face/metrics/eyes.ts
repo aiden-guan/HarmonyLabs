@@ -2,15 +2,46 @@ import { NORMALIZATION } from "@/lib/face/normalization";
 import { withReference } from "@/lib/face/metrics/define";
 import {
   averageCanthalTilt,
+  landmark,
   mean,
   percentDifference,
   ratioOf,
   span,
   vertical,
 } from "@/lib/face/metrics/helpers";
-import type { FacialMetricDefinition } from "@/types/face";
+import { downwardSpan } from "@/lib/face/geometry";
+import type { FacialMetricDefinition, SemanticLandmarkMap } from "@/types/face";
+
+function pallettLengthRatio(map: SemanticLandmarkMap): number | null {
+  const trichion = landmark(map, "trichion");
+  const menton = landmark(map, "menton");
+  const left = landmark(map, "leftPupil");
+  const right = landmark(map, "rightPupil");
+  const mouth = landmark(map, "stomion");
+  if (!trichion || !menton || !left || !right || !mouth) return null;
+  const eyes = { x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 };
+  return ratioOf(downwardSpan(eyes, mouth), downwardSpan(trichion, menton));
+}
 
 export const eyeMetrics: FacialMetricDefinition[] = [
+  withReference({
+    id: "pallett-length-ratio",
+    label: "Eye–mouth face length",
+    category: "eyes",
+    view: "front",
+    unit: "ratio",
+    requiredLandmarks: ["trichion", "menton", "leftPupil", "rightPupil", "stomion"],
+    formula: "vertical(pupil midpoint, stomion) / vertical(trichion, menton)",
+    normalization: NORMALIZATION.segmentRatio,
+    explanation:
+      "Vertical distance from the pupil midpoint to the mouth opening, divided by hairline-to-chin length. Scored only when trichion is placed. This follows Pallett, Link, and Lee rather than the mesh forehead.",
+    overlay: {
+      type: "distance-pair",
+      numerator: ["leftPupil", "stomion"],
+      denominator: ["trichion", "menton"],
+    },
+    calculate: pallettLengthRatio,
+  }),
   withReference({
     id: "intercanthal-face-ratio",
     label: "Intercanthal width ratio",

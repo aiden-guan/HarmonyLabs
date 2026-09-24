@@ -7,7 +7,7 @@ export function formatScore(value: number | null | undefined): string {
 
 export function formatMetricValue(value: number | null | undefined, unit: MetricUnit): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-  if (unit === "degrees") return `${value.toFixed(1)}°`;
+  if (unit === "degrees") return `${Math.round(value)}°`;
   if (unit === "percent") return `${value.toFixed(1)}%`;
   return value.toFixed(3);
 }

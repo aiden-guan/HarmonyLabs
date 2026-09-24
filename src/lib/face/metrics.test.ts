@@ -64,14 +64,21 @@ const front = face({
 describe("metric catalog", () => {
   it("publishes a complete deterministic catalog", () => {
     expect(METRICS.length).toBeGreaterThanOrEqual(25);
-    expect(METRICS.length).toBe(34);
+    expect(METRICS.length).toBe(35);
     for (const metric of METRICS) {
       expect(metric.id).toMatch(/^[a-z0-9-]+$/);
       expect(metric.requiredLandmarks.length).toBeGreaterThan(0);
       expect(metric.formula.length).toBeGreaterThan(8);
       expect(metric.explanation.length).toBeGreaterThan(12);
-      expect(metric.referenceRange.confidence).toBe("experimental");
-      expect(metric.scoring.weight).toBeGreaterThan(0);
+      expect(["literature", "informational"]).toContain(metric.referenceRange.confidence);
+      if (metric.evidence.scoreEligible) {
+        expect(metric.scoring.weight).toBeGreaterThan(0);
+        expect(metric.evidence.references.length).toBeGreaterThan(0);
+        expect(metric.evidence.evidenceTier).toBeLessThan(4);
+      } else {
+        expect(metric.scoring.weight).toBe(0);
+        expect(metric.evidence.evidenceTier).toBe(4);
+      }
       expect(metric.overlay).toBeTruthy();
     }
   });
@@ -148,13 +155,14 @@ describe("metric catalog", () => {
 });
 
 describe("scoring", () => {
-  it("scores the inside of a range at 10 and falls off smoothly", () => {
+  it("scores the center highest and does not flatten the harmony range at 10", () => {
     expect(scoreMetric(0.5, 0.4, 0.6, 0.1)).toBe(10);
-    expect(scoreMetric(0.4, 0.4, 0.6, 0.1)).toBe(10);
-    expect(scoreMetric(0.6, 0.4, 0.6, 0.1)).toBe(10);
+    const edge = scoreMetric(0.4, 0.4, 0.6, 0.1);
+    expect(edge).toBeCloseTo(7, 5);
+    expect(scoreMetric(0.6, 0.4, 0.6, 0.1)).toBeCloseTo(7, 5);
     const justOutside = scoreMetric(0.62, 0.4, 0.6, 0.1);
-    expect(justOutside).toBeLessThan(10);
-    expect(justOutside).toBeGreaterThan(9);
+    expect(justOutside).toBeLessThan(7);
+    expect(justOutside).toBeGreaterThan(6);
     expect(scoreMetric(2, 0.4, 0.6, 0.1)).toBeLessThan(0.01);
     expect(scoreMetric(Number.NaN, 0, 1, 1)).toBeNull();
     expect(scoreMetric(1, 0, 1, 0)).toBeNull();
@@ -176,11 +184,11 @@ describe("scoring", () => {
     const report = buildReport(inputs);
     expect(report.front).toBeCloseTo(6, 6);
     expect(report.profile).toBeCloseTo(10, 6);
-    expect(report.harmony).toBeCloseTo(0.62 * 6 + 0.38 * 10, 6);
+    expect(report.harmony).toBeCloseTo(6.8, 6);
     expect(report.partial).toBe(false);
     expect(report.categories.find((category) => category.category === "eyes")?.score).toBe(6);
     const low = report.metrics.find((metric) => metric.id === "b");
-    expect(low?.impact).toBeCloseTo(0.62 * 3, 5);
+    expect(low?.impact).toBeCloseTo(2.4, 5);
     expect(combineHarmony(8, null)).toEqual({ harmony: 8, partial: true });
   });
 });

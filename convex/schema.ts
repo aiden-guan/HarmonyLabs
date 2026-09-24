@@ -36,6 +36,11 @@ export const storedMetric = v.object({
   unit: v.union(v.literal("ratio"), v.literal("percent"), v.literal("degrees")),
   category: v.string(),
   view: faceView,
+  evidenceTier: v.optional(v.union(v.number(), v.null())),
+  evidenceLabel: v.optional(v.union(v.string(), v.null())),
+  scoreEligible: v.optional(v.boolean()),
+  measurementConfidence: v.optional(v.union(v.number(), v.null())),
+  contribution: v.optional(v.union(v.number(), v.null())),
 });
 
 export default defineSchema({
@@ -70,6 +75,17 @@ export default defineSchema({
     landmarks: v.array(storedLandmark),
     metrics: v.array(storedMetric),
     updatedAt: v.number(),
+    scoringVersion: v.optional(v.union(v.string(), v.null())),
+    metricDefinitionVersion: v.optional(v.union(v.string(), v.null())),
+    referenceDataVersion: v.optional(v.union(v.string(), v.null())),
+    landmarkModelVersion: v.optional(v.union(v.string(), v.null())),
+    presentationProfile: v.optional(
+      v.union(v.literal("neutral"), v.literal("masculine"), v.literal("feminine"), v.null()),
+    ),
+    adultAcknowledged: v.optional(v.union(v.boolean(), v.null())),
+    distanceProtocol: v.optional(
+      v.union(v.literal("followed"), v.literal("not-followed"), v.literal("unknown"), v.null()),
+    ),
   })
     .index("by_public_id", ["publicId"])
     .index("by_user_updated", ["userId", "updatedAt"])

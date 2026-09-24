@@ -32,6 +32,11 @@ export function CompareView({
     router.replace(`/compare?${params.toString()}`);
   }
 
+  const versionMismatch = Boolean(
+    left &&
+      right &&
+      (left.scoringVersion ?? "harmony-v1") !== (right.scoringVersion ?? "harmony-v1"),
+  );
   const rows = left && right ? metricRows(left, right) : [];
   const largest = [...rows].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
 
@@ -55,6 +60,12 @@ export function CompareView({
           Evaluate geometric variations between scans. Score variations typically reflect camera angle, lighting, landmark verification, or posture rather than anatomical alteration.
         </p>
       </div>
+
+      {versionMismatch ? (
+        <p className="rounded-md border border-line bg-panel-muted p-3 text-xs text-muted">
+          These analyses use different Harmony versions ({left?.scoringVersion ?? "harmony-v1"} and {right?.scoringVersion ?? "harmony-v1"}). Compare them as separate reports. The numeric difference is not a change in the face.
+        </p>
+      ) : null}
 
       {complete.length < 2 ? (
         <Card className="border border-line bg-panel p-8 text-center max-w-xl mx-auto my-8">

@@ -30,9 +30,9 @@ import type { FaceView, PhotoQuality, RawFaceLandmark, SemanticLandmark } from "
 import { cn } from "@/lib/utils";
 
 const frontGuidance = [
-  "Face camera directly",
-  "Camera at eye level",
-  "Neutral facial expression",
+  "Face camera directly, within a few degrees",
+  "Camera at eye level, about 4–5 ft away",
+  "Neutral expression, lips gently together",
   "Even, diffused lighting",
   "No heavy shadows or hair occlusion",
 ];
@@ -64,6 +64,9 @@ export function NewAnalysisWizard() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("setup");
   const [name, setName] = useState("");
+  const [adultAcknowledged, setAdultAcknowledged] = useState(false);
+  const [presentation, setPresentation] = useState<"neutral" | "masculine" | "feminine">("neutral");
+  const [distanceFollowed, setDistanceFollowed] = useState(false);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -111,7 +114,12 @@ export function NewAnalysisWizard() {
     const response = await fetch("/api/analyses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({
+        name,
+        adultAcknowledged,
+        presentationProfile: presentation,
+        distanceProtocol: distanceFollowed ? "followed" : "unknown",
+      }),
     });
     const body = await response.json().catch(() => ({}));
     setPending(false);
@@ -198,6 +206,7 @@ export function NewAnalysisWizard() {
       width: result.width,
       height: result.height,
       transform: result.transform,
+      expression: result.expression,
     });
     markCapture("landmark-interpretation-end");
     measureCapture("landmark-interpretation", "landmark-interpretation-start", "landmark-interpretation-end");
@@ -205,6 +214,10 @@ export function NewAnalysisWizard() {
       setError(interpreted.hardError);
       return false;
     }
+    interpreted.quality.frameCount = result.frameCount;
+    interpreted.quality.landmarkDispersion = result.landmarkDispersion ?? null;
+    interpreted.quality.radialCorrectionApplied = Boolean(result.lens && (Math.abs(result.lens.k1) > 1e-8 || Math.abs(result.lens.k2) > 1e-8));
+    interpreted.quality.distanceProtocol = distanceFollowed ? "followed" : "unknown";
     setError("");
     beginSave(
       view,
@@ -216,6 +229,7 @@ export function NewAnalysisWizard() {
         blurScore: result.blurScore,
         brightnessScore: result.brightnessScore,
         transform: result.transform,
+        expression: result.expression ?? null,
       },
       interpreted,
       true,
@@ -254,6 +268,7 @@ export function NewAnalysisWizard() {
         width: prepared.width,
         height: prepared.height,
         transform: detection.transforms[0] ?? null,
+        expression: detection.expression,
       });
       markCapture("landmark-interpretation-end");
       measureCapture("landmark-interpretation", "landmark-interpretation-start", "landmark-interpretation-end");
@@ -377,6 +392,12 @@ export function NewAnalysisWizard() {
     let image: PreparedImage = prepared;
     let final = interpreted;
     if (!prepared.corrected) {
+      const kept = {
+        frameCount: final.quality.frameCount,
+        landmarkDispersion: final.quality.landmarkDispersion,
+        radialCorrectionApplied: final.quality.radialCorrectionApplied,
+        distanceProtocol: final.quality.distanceProtocol,
+      };
       final = interpretDetection({
         faces: held.rawFaces,
         view,
@@ -385,8 +406,10 @@ export function NewAnalysisWizard() {
         width: image.width,
         height: image.height,
         transform: held.transform,
+        expression: held.expression,
       });
       if (final.hardError) throw new Error(final.hardError);
+      Object.assign(final.quality, kept);
     }
     if (view === "profile") image = await alignProfile(image, final.quality.mirrored, final.levelRadians);
     if (final.landmarks.length === 0) throw new Error("Could not map landmarks for this photo.");
@@ -497,7 +520,7 @@ export function NewAnalysisWizard() {
               <CardHeader>
                 <CardTitle>Session details</CardTitle>
                 <CardDescription>
-                  Give this analysis a reference name. Proportional measurements are scored against literature reference bands.
+                  MogLabs compares reproducible facial measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence on Harmony.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -512,14 +535,59 @@ export function NewAnalysisWizard() {
                     />
                   </Field>
 
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium text-ink">Presentation profile</legend>
+                    <p className="text-xs text-muted leading-relaxed">
+                      Optional and never inferred from the photograph. Masculine and feminine ranges are used only when you choose them, and each one names the study population.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {(["neutral", "masculine", "feminine"] as const).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setPresentation(option)}
+                          className={cn(
+                            "rounded-md border px-3 py-1.5 text-xs font-medium capitalize",
+                            presentation === option ? "border-accent bg-accent/10 text-accent" : "border-line text-muted",
+                          )}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <label className="flex items-start gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={distanceFollowed}
+                      onChange={(event) => setDistanceFollowed(event.target.checked)}
+                    />
+                    <span>
+                      I will photograph from about 4–5 ft (1.2–1.5 m), with a stand or timer if I can. Stepping back and cropping beats holding the camera close.
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={adultAcknowledged}
+                      onChange={(event) => setAdultAcknowledged(event.target.checked)}
+                      required
+                    />
+                    <span>This analysis is of an adult (18+). MogLabs does not estimate age and does not apply these references to minors.</span>
+                  </label>
+
                   <div className="rounded-md border border-line bg-panel-muted p-3 text-xs text-muted leading-relaxed">
                     <p>
-                      MogLabs reference intervals are universal in this version. Biological sex is not collected because current geometric formulas do not split reference limits by sex.
+                      Some references come from direct attractiveness experiments, while others come from established aesthetic or anthropometric research. Evidence strength is shown for each measurement. Harmony is not a clinical diagnosis and not a universal mathematical face.
                     </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <Button type="submit" disabled={pending} className="gap-2">
+                    <Button type="submit" disabled={pending || !adultAcknowledged} className="gap-2">
                       <span>Continue</span>
                       <ArrowRight className="h-4 w-4" />
                     </Button>
@@ -556,6 +624,7 @@ export function NewAnalysisWizard() {
               onManual={(file) => {
                 if (step !== "threeQuarter") void placeManually(step, file);
               }}
+              onSkip={step === "threeQuarter" ? () => setStep("profile") : undefined}
             />
           ) : null}
 
@@ -667,6 +736,7 @@ interface HeldCapture {
   blurScore: number;
   brightnessScore: number;
   transform: FacialMatrix | null;
+  expression?: import("@/lib/face/expression-qc").ExpressionSignals | null;
 }
 
 /** The end-to-end wizard uploads a side fixture on the three-quarter step. That fixture must not satisfy this gate in production. */
@@ -752,6 +822,7 @@ function PhotoStep({
   onCamera,
   onFile,
   onManual,
+  onSkip,
 }: {
   view: CaptureView;
   preview?: string;
@@ -760,6 +831,7 @@ function PhotoStep({
   onCamera: (result: CameraCaptureResult) => boolean | void;
   onFile: (file: File) => void;
   onManual: (file: File) => void;
+  onSkip?: () => void;
 }) {
   const [mode, setMode] = useState<"camera" | "upload">("camera");
   const [fileState, setFileState] = useState<{ view: CaptureView; file: File | null }>({ view, file: null });
@@ -843,14 +915,27 @@ function PhotoStep({
       </CardHeader>
 
       <CardContent>
-        {view === "threeQuarter" ? <ThreeQuarterInstructions /> : null}
-        {view === "profile" ? <ProfileInstructions /> : null}
         {mode === "camera" ? (
-          <div className="space-y-4">
-            <CameraCapture view={view} onCapture={acceptCamera} />
-          </div>
+          <CameraCapture
+            view={view}
+            onCapture={acceptCamera}
+            guide={
+              view === "threeQuarter" ? (
+                <ThreeQuarterInstructions overlay />
+              ) : view === "profile" ? (
+                <ProfileInstructions overlay />
+              ) : null
+            }
+          />
         ) : (
           <div className="space-y-4">
+            {view === "threeQuarter" ? <ThreeQuarterInstructions /> : null}
+            {onSkip ? (
+              <button type="button" onClick={onSkip} className="text-xs font-medium text-muted underline-offset-2 hover:underline">
+                Skip three-quarter check. It is not scored. It only helps you turn from front to profile.
+              </button>
+            ) : null}
+            {view === "profile" ? <ProfileInstructions /> : null}
             {view === "front" ? (
               <div className="rounded-md border border-line bg-panel-muted p-3">
                 <span className="font-semibold text-xs text-ink block mb-2">
@@ -931,11 +1016,19 @@ function PhotoStep({
   );
 }
 
-function ThreeQuarterInstructions() {
+function instructionShell(overlay: boolean) {
+  return overlay
+    ? "rounded-lg border border-white/80 bg-white/95 p-2.5 shadow-[0_8px_24px_rgba(7,16,24,0.32)] backdrop-blur-sm @max-[28rem]:p-2"
+    : "rounded-md border border-line bg-panel-muted p-3";
+}
+
+function ThreeQuarterInstructions({ overlay = false }: { overlay?: boolean }) {
   return (
-    <div className="mb-4 rounded-md border border-line bg-panel-muted p-3">
-      <p className="text-sm font-medium text-ink">Turn your head about halfway to either side.</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+    <div className={instructionShell(overlay)}>
+      <p className={cn("font-medium text-ink", overlay ? "text-[13px] leading-4 @max-[28rem]:text-xs" : "text-sm")}>
+        Turn your head about halfway to either side.
+      </p>
+      <ol className={cn("list-decimal text-muted", overlay ? "mt-1.5 space-y-0.5 pl-4 text-xs leading-4 @max-[28rem]:mt-1 @max-[28rem]:leading-snug" : "mt-2 space-y-1 pl-5 text-sm")}>
         {threeQuarterSteps.map((step) => (
           <li key={step}>{step}</li>
         ))}
@@ -944,24 +1037,26 @@ function ThreeQuarterInstructions() {
   );
 }
 
-function ProfileInstructions() {
+function ProfileInstructions({ overlay = false }: { overlay?: boolean }) {
   return (
-    <div className="mb-4 rounded-md border border-line bg-panel-muted p-3">
-      <p className="text-sm font-medium text-ink">Turn to a side view.</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+    <div className={instructionShell(overlay)}>
+      <p className={cn("font-medium text-ink", overlay ? "text-[13px] leading-4 @max-[28rem]:text-xs" : "text-sm")}>Turn to a side view.</p>
+      <ol className={cn("list-decimal text-muted", overlay ? "mt-1.5 space-y-0.5 pl-4 text-xs leading-4 @max-[28rem]:mt-1 @max-[28rem]:leading-snug" : "mt-2 space-y-1 pl-5 text-sm")}>
         {profileSteps.map((step) => (
           <li key={step}>{step}</li>
         ))}
       </ol>
-      <p className="mt-2 text-xs text-muted">Stop once the far eye leaves view. You do not need a harder turn than that.</p>
-      <ProfileTurnPictogram />
+      <p className={cn("text-muted", overlay ? "mt-1.5 text-[11px] leading-4" : "mt-2 text-xs")}>
+        Stop once the far eye leaves view. You do not need a harder turn than that.
+      </p>
+      <ProfileTurnPictogram overlay={overlay} />
     </div>
   );
 }
 
-function ProfileTurnPictogram() {
+function ProfileTurnPictogram({ overlay = false }: { overlay?: boolean }) {
   return (
-    <svg viewBox="0 0 168 52" className="mt-3 h-12 w-40 text-muted" aria-hidden="true">
+    <svg viewBox="0 0 168 52" className={cn("text-muted", overlay ? "mt-2 h-8 w-28 @max-[28rem]:hidden" : "mt-3 h-12 w-40")} aria-hidden="true">
       <circle cx="22" cy="26" r="12" fill="none" stroke="currentColor" strokeWidth="1.5" />
       <circle cx="18" cy="24" r="1.2" fill="currentColor" />
       <circle cx="26" cy="24" r="1.2" fill="currentColor" />

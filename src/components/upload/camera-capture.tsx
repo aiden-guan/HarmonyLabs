@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   cameraProfileNote,
@@ -13,6 +13,7 @@ import {
   type LensModel,
 } from "@/lib/face/camera-optics";
 import { CaptureFrameGuide, TurnTrack } from "@/components/upload/capture-overlay";
+import { aggregateLandmarkFrames } from "@/lib/face/frame-aggregate";
 import { liveMeshIsFresh, resolveCaptureFaces } from "@/lib/face/capture-route";
 import {
   assessCaptureAlignment,
@@ -72,6 +73,9 @@ export interface CameraCaptureResult {
   /** Matrix from the same detection as `rawFaces`, when the landmarker returned one. */
   transform: FacialMatrix | null;
   image: Promise<PreparedImage & { corrected: boolean }>;
+  frameCount?: number;
+  landmarkDispersion?: number | null;
+  expression?: import("@/lib/face/expression-qc").ExpressionSignals | null;
 }
 
 type CameraPhase = "starting" | "live" | "blocked" | "missing" | "unavailable";
@@ -98,10 +102,13 @@ const RETRY_CAPTURE_MS = 1400;
 export function CameraCapture({
   view,
   onCapture,
+  guide,
 }: {
   view: CaptureView;
   /** Return false when this photo was rejected and the step did not advance. */
   onCapture: (result: CameraCaptureResult) => boolean | void;
+  /** Pose tips drawn on the preview, so the video frame stays in place between angles. */
+  guide?: ReactNode;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCaptureRef = useRef(onCapture);
@@ -116,6 +123,8 @@ export function CameraCapture({
   const holdTimer = useRef<number | null>(null);
   const lensRef = useRef<LensModel>(lensForDevice("desktop"));
   const latestFacesRef = useRef<RawFaceLandmark[][]>([]);
+  const landmarkHistoryRef = useRef<RawFaceLandmark[][]>([]);
+  const expressionRef = useRef<import("@/lib/face/expression-qc").ExpressionSignals | null>(null);
   const latestTransformRef = useRef<FacialMatrix | null>(null);
   const latestDetectionTimestampRef = useRef<number | null>(null);
   const latestFrameDimensionsRef = useRef<{ width: number; height: number } | null>(null);
@@ -129,6 +138,9 @@ export function CameraCapture({
   );
   const [frame, setFrame] = useState({ width: 960, height: 720 });
   const [assessment, setAssessment] = useState<CaptureAssessment>(() => idleAssessment(view));
+  useEffect(() => {
+    landmarkHistoryRef.current = [];
+  }, [view]);
   const [live, setLive] = useState<LiveFaceSummary | null>(null);
   const [captureError, setCaptureError] = useState("");
   const [trackedView, setTrackedView] = useState(view);
@@ -228,6 +240,7 @@ export function CameraCapture({
             failures = 0;
             setCaptureError((current) => (current === GUIDE_PAUSED ? "" : current));
           }
+          expressionRef.current = detection.expression ?? null;
           applyFacesRef.current(detection.faces, requestedAt, detection.transforms[0] ?? null);
         })
         .catch(() => {
@@ -290,7 +303,12 @@ export function CameraCapture({
       const width = video?.videoWidth ?? 0;
       const height = video?.videoHeight ?? 0;
       if (width > 1 && height > 1 && faces.length > 0) {
-        latestFacesRef.current = cloneFaces(faces);
+        const cloned = cloneFaces(faces);
+        latestFacesRef.current = cloned;
+        if (cloned[0]) {
+          landmarkHistoryRef.current.push(cloned[0]);
+          if (landmarkHistoryRef.current.length > 15) landmarkHistoryRef.current.shift();
+        }
         latestTransformRef.current = transform;
         latestDetectionTimestampRef.current = detectedAt;
         latestFrameDimensionsRef.current = { width, height };
@@ -405,6 +423,14 @@ export function CameraCapture({
 
       const deliver = (rawFaces: RawFaceLandmark[][], usedLiveMesh: boolean, detectedAt: number, transform: FacialMatrix | null) => {
         const snapshot = cloneFaces(rawFaces);
+        let frameCount = 1;
+        let landmarkDispersion: number | null = null;
+        if (snapshot[0]) {
+          const aggregated = aggregateLandmarkFrames(landmarkHistoryRef.current, snapshot[0]);
+          frameCount = aggregated.acceptedCount;
+          landmarkDispersion = aggregated.dispersion;
+          if (aggregated.acceptedCount >= 7) snapshot[0] = aggregated.face;
+        }
         const accepted = onCaptureRef.current({
           width,
           height,
@@ -418,6 +444,9 @@ export function CameraCapture({
           brightnessScore: scores.brightnessScore,
           transform,
           image,
+          frameCount,
+          landmarkDispersion,
+          expression: expressionRef.current,
         });
         if (accepted === false) {
           retryAtRef.current = performance.now() + RETRY_CAPTURE_MS;
@@ -449,6 +478,7 @@ export function CameraCapture({
             detectStill: async () => {
               const detection = await detectCanvas(canvas, viewRef.current === "front" ? "front" : "profile");
               stillTransform = detection.transforms[0] ?? null;
+              if (detection.expression) expressionRef.current = detection.expression;
               return detection.faces;
             },
           }),
@@ -490,7 +520,7 @@ export function CameraCapture({
 
   return (
     <div className="mt-5">
-      <div className="relative mx-auto overflow-hidden bg-[#14202b]" style={previewFrameStyle(frame.width, frame.height)}>
+      <div className="@container relative mx-auto overflow-hidden bg-[#14202b]" style={previewFrameStyle(frame.width, frame.height)}>
         <video
           ref={videoRef}
           className={cn("absolute inset-0 z-0 h-full w-full object-contain", phase === "live" ? "opacity-100" : "opacity-0")}
@@ -509,6 +539,11 @@ export function CameraCapture({
             live={phase === "live" ? live : null}
           />
         </div>
+        {guide ? (
+          <div className="absolute top-3 right-3 z-20 max-h-[calc(100%-1.5rem)] w-[min(18rem,70%)] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+            {guide}
+          </div>
+        ) : null}
       </div>
       {turned && assessment.turn ? (
         <TurnTrack amount={assessment.turn.amount} target={assessment.turn.target} status={assessment.status} />

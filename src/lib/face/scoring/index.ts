@@ -3,11 +3,14 @@ export {
   categoryScores,
   combineHarmony,
   harmonyFromMetrics,
+  scoreFeatureGroups,
   viewScore,
   weightedAverage,
   withImpacts,
-  HARMONY_VIEW_WEIGHTS,
 } from "@/lib/face/scoring/aggregate";
+export { HARMONY_VIEW_WEIGHTS_V1 } from "@/lib/face/scoring/aggregate-v1";
+export { scoreMetricV1 } from "@/lib/face/scoring/score-metric-v1";
+export { scoreAgainstModel } from "@/lib/face/scoring/score-metric";
 export type {
   CategoryScore,
   HarmonyReport,

@@ -268,6 +268,24 @@ export function screenTurnDirection(sourceFacing: "left" | "right", mirrored: bo
 }
 
 /** 0 is frontal and 1 is a full side, on the scale of the orientation source. */
+/** A side view MediaPipe can measure. Matrix yaw does not need to read 90°. */
+export function profileUsable(reading: PoseReading): boolean {
+  return reading.side;
+}
+
+/**
+ * High-confidence profile angles require a clear lateral silhouette:
+ * ideal side band, not the borderline turn, and the far eye collapsed.
+ */
+export function profileMeasurementGrade(reading: PoseReading, cue: ProfileShapeCue): boolean {
+  return (
+    reading.side &&
+    reading.ideal &&
+    !reading.sideBorderline &&
+    (cue.eyeCollapse ?? 0) >= 0.78
+  );
+}
+
 export function turnProgress(orientation: HeadOrientation, view: "threeQuarter" | "profile"): { amount: number; target: number } {
   const abs = Math.abs(finite(orientation.yaw) ?? 0);
   const span = orientation.source === "matrix" ? 90 : 75;

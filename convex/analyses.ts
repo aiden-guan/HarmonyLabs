@@ -27,7 +27,14 @@ export const get = query({
 });
 
 export const create = mutation({
-  args: { name: v.string(), isSample: v.optional(v.boolean()), guestId: v.optional(v.string()) },
+  args: {
+    name: v.string(),
+    isSample: v.optional(v.boolean()),
+    guestId: v.optional(v.string()),
+    adultAcknowledged: v.optional(v.boolean()),
+    presentationProfile: v.optional(v.union(v.literal("neutral"), v.literal("masculine"), v.literal("feminine"))),
+    distanceProtocol: v.optional(v.union(v.literal("followed"), v.literal("not-followed"), v.literal("unknown"))),
+  },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId && !args.guestId) throw new Error("Sign in required.");
@@ -53,6 +60,9 @@ export const create = mutation({
       landmarks: [],
       metrics: [],
       updatedAt: now,
+      presentationProfile: args.presentationProfile ?? "neutral",
+      adultAcknowledged: args.adultAcknowledged ?? null,
+      distanceProtocol: args.distanceProtocol ?? "unknown",
     });
     const analysis = await ctx.db
       .query("analyses")
@@ -183,6 +193,17 @@ export const saveResults = mutation({
     errorMessage: v.union(v.string(), v.null()),
     metrics: v.array(storedMetric),
     guestId: v.optional(v.string()),
+    scoringVersion: v.optional(v.union(v.string(), v.null())),
+    metricDefinitionVersion: v.optional(v.union(v.string(), v.null())),
+    referenceDataVersion: v.optional(v.union(v.string(), v.null())),
+    landmarkModelVersion: v.optional(v.union(v.string(), v.null())),
+    presentationProfile: v.optional(
+      v.union(v.literal("neutral"), v.literal("masculine"), v.literal("feminine"), v.null()),
+    ),
+    adultAcknowledged: v.optional(v.union(v.boolean(), v.null())),
+    distanceProtocol: v.optional(
+      v.union(v.literal("followed"), v.literal("not-followed"), v.literal("unknown"), v.null()),
+    ),
   },
   handler: async (ctx, args) => {
     const analysis = await ownedAnalysis(ctx, args.analysisId, args.guestId);

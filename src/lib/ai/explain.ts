@@ -22,7 +22,7 @@ export function explainStructured(question: string, context: AnalysisContext): s
   const highest = [...lowest].reverse();
   const preface = context.analysis.isSample
     ? "This report uses a geometric diagram, not a photograph of a person."
-    : "Proportional Harmony compares measurements with MogLabs' experimental reference ranges. It is not a measure of attractiveness.";
+    : "Harmony compares measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. It is not a measure of attractiveness, and it is not a clinical assessment.";
 
   if (q.includes("impact")) {
     const impacts = [...metrics]
@@ -48,7 +48,7 @@ export function explainStructured(question: string, context: AnalysisContext): s
   }
 
   if (q.includes("front") && (q.includes("higher") || q.includes("why"))) {
-    return `${preface}\n\nFront score ${formatScore(context.analysis.frontScore)}. Profile score ${formatScore(context.analysis.profileScore)}. Harmony ${formatScore(context.analysis.harmony)} weights the front view at 62% and the profile at 38%.\nThe lower-scoring side is driven by:\n${lowest
+    return `${preface}\n\nFront Harmony ${formatScore(context.analysis.frontScore)}. Profile Harmony ${formatScore(context.analysis.profileScore)}. Combined Harmony ${formatScore(context.analysis.harmony)} is an evidence-weighted feature-group score. Front and profile stay visible separately.\nThe lower-scoring side is driven by:\n${lowest
       .slice(0, 4)
       .map((metric) => `- ${line(metric)}`)
       .join("\n")}`;

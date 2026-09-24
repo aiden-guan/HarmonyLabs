@@ -112,6 +112,29 @@ export function LandmarkEditor({
     void persist(next, view).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not save landmarks."));
   }
 
+  function placeTrichion() {
+    const activeView = viewRef.current;
+    if (activeView !== "front") return;
+    if (landmarksRef.current.front.some((landmark) => landmark.key === "trichion")) {
+      setSelected("trichion");
+      return;
+    }
+    past.current.front.push(landmarksRef.current.front);
+    future.current.front = [];
+    const added: SemanticLandmark = {
+      key: "trichion",
+      x: 0.5,
+      y: 0.08,
+      confidence: 1,
+      source: "manual",
+    };
+    const next = { ...landmarksRef.current, front: [...landmarksRef.current.front, added] };
+    landmarksRef.current = next;
+    setLandmarks(next);
+    setSelected("trichion");
+    void persist(next, "front").catch((reason) => setError(reason instanceof Error ? reason.message : "Could not save landmarks."));
+  }
+
   function reset() {
     past.current[view].push(landmarksRef.current[view]);
     future.current[view] = [];
@@ -287,10 +310,15 @@ export function LandmarkEditor({
 
           {/* Landmarks Navigation List */}
           <Card className="border border-line bg-panel shadow-xs">
-            <CardHeader className="py-2.5 px-4 border-b border-line/60 flex flex-row items-center justify-between">
+            <CardHeader className="py-2.5 px-4 border-b border-line/60 flex flex-row items-center justify-between gap-2">
               <span className="font-mono text-[11px] uppercase tracking-wider text-muted font-medium">
                 {view === "front" ? "Front" : "Profile"} points ({current.length})
               </span>
+              {view === "front" && !current.some((landmark) => landmark.key === "trichion") ? (
+                <button type="button" onClick={placeTrichion} className="text-[11px] font-medium text-accent">
+                  Add hairline
+                </button>
+              ) : null}
             </CardHeader>
             <div className="max-h-60 overflow-y-auto divide-y divide-line/40 p-1">
               {current.map((landmark) => {

@@ -16,6 +16,7 @@ test("sign in, upload, adjust a landmark, read report, and export shareable card
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("#content").getByText("New analysis")).toBeVisible();
 
+  await page.getByRole("checkbox", { name: /adult/i }).check();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Upload photo" }).click();
   await page.getByLabel("Front photograph").setInputFiles(path.join(fixtureDir, "front.png"));
@@ -37,8 +38,7 @@ test("sign in, upload, adjust a landmark, read report, and export shareable card
   await page.getByRole("button", { name: "Calculate measurements" }).click();
 
   // Redesigned report verification
-  await expect(page.getByText("Proportional harmony")).toBeVisible();
-  await expect(page.getByText("Geometric reference score, not attractiveness.")).toBeVisible();
+  await expect(page.getByText("Research-informed facial proportional score.")).toBeVisible();
 
   // Measurements tab & overlay verification
   await page.getByRole("button", { name: "Measurements" }).click();
@@ -89,6 +89,7 @@ test("guest can do analysis for free, is required to sign in before viewing resu
   await expect(page.locator("#content").getByText("New analysis")).toBeVisible();
 
   // Setup step
+  await page.getByRole("checkbox", { name: /adult/i }).check();
   await page.getByRole("button", { name: "Continue" }).click();
 
   // Front photograph
@@ -122,7 +123,6 @@ test("guest can do analysis for free, is required to sign in before viewing resu
 
   // User is redirected to results page with claimed analysis
   await expect(page).toHaveURL(/\/analysis\/[a-f0-9-]+$/);
-  await expect(page.getByText("Proportional harmony")).toBeVisible();
-  await expect(page.getByText("Geometric reference score, not attractiveness.")).toBeVisible();
+  await expect(page.getByText("Research-informed facial proportional score.")).toBeVisible();
 });
 

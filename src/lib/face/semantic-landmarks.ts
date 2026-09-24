@@ -130,6 +130,10 @@ export const LANDMARK_GUIDE: Record<SemanticLandmarkKey, LandmarkGuide> = {
     label: "Forehead apex",
     hint: "Top of the face mesh on the forehead. This is not the hairline.",
   },
+  trichion: {
+    label: "Trichion",
+    hint: "Hairline at the midline. Place it yourself. The mesh does not detect it, and the eye–mouth length ratio is scored only after it is set.",
+  },
   columella: {
     label: "Columella",
     hint: "Estimated point on the nose column. Drag it if the nasolabial angle looks wrong.",

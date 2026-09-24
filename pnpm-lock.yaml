@@ -15,7 +15,7 @@ importers:
         specifier: ^0.0.95
         version: 0.0.95(@auth/core@0.41.1)(convex@1.46.0(react@19.2.8))(react@19.2.8)
       '@mediapipe/tasks-vision':
-        specifier: ^0.10.22
+        specifier: 0.10.35
         version: 0.10.35
       clsx:
         specifier: ^2.1.1

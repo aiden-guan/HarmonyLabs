@@ -1,11 +1,13 @@
+import { MEDIAPIPE_FACE_LANDMARKER_URL, MEDIAPIPE_WASM_BASE } from "@/lib/mediapipe/assets";
+import { expressionFromBlendshapes } from "@/lib/face/expression-qc";
+
 const scope = globalThis as unknown as {
   onmessage: ((event: MessageEvent) => void) | null;
   postMessage: (message: unknown) => void;
 };
 
-const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const WASM_BASE = MEDIAPIPE_WASM_BASE;
+const MODEL_URL = MEDIAPIPE_FACE_LANDMARKER_URL;
 
 type Inbound =
   | { type: "init" }
@@ -16,6 +18,7 @@ interface StillLandmarker {
   detect: (image: ImageBitmap) => {
     faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
     facialTransformationMatrixes?: Array<{ rows?: number; columns?: number; data?: ArrayLike<number> }>;
+    faceBlendshapes?: Array<{ categories?: Array<{ categoryName?: string; score?: number }> }>;
   };
   close?: () => void;
 }
@@ -33,7 +36,7 @@ function load(): Promise<StillLandmarker> {
         baseOptions: { modelAssetPath: MODEL_URL, delegate: "CPU" },
         runningMode: "IMAGE",
         numFaces: 3,
-        outputFaceBlendshapes: false,
+        outputFaceBlendshapes: true,
         outputFacialTransformationMatrixes: true,
       })) as StillLandmarker;
       landmarker = created;
@@ -94,6 +97,7 @@ scope.onmessage = (event: MessageEvent<Inbound>) => {
           columns: matrix.columns ?? 0,
           data: Array.from(matrix.data ?? [], (value) => Number(value)),
         })),
+        expression: expressionFromBlendshapes(result.faceBlendshapes?.[0]?.categories),
       });
     })
     .catch((error: unknown) => {

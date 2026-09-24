@@ -1,4 +1,6 @@
+import { MEDIAPIPE_FACE_LANDMARKER_URL, MEDIAPIPE_WASM_BASE } from "@/lib/mediapipe/assets";
 import type { FaceView, RawFaceLandmark } from "@/types/face";
+import { expressionFromBlendshapes, type ExpressionSignals } from "@/lib/face/expression-qc";
 import { facialMatricesFromVision, type FacialMatrix } from "@/lib/face/facial-transform";
 import {
   createStillDetectorClient,
@@ -10,11 +12,13 @@ import { createSessionLease } from "@/lib/mediapipe/session-lease";
 export interface RawDetection {
   faces: RawFaceLandmark[][];
   transforms: FacialMatrix[];
+  expression?: ExpressionSignals | null;
 }
 
 export interface LiveFaceDetection {
   faces: RawFaceLandmark[][];
   transforms: FacialMatrix[];
+  expression?: ExpressionSignals | null;
 }
 
 interface VisionMatrix {
@@ -23,19 +27,21 @@ interface VisionMatrix {
   data?: ArrayLike<number>;
 }
 
+type BlendshapeList = Array<{ categories?: Array<{ categoryName?: string; score?: number }> }>;
+
 type FaceDetector = {
   detect: (image: ImageBitmap | HTMLCanvasElement) => {
     faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
     facialTransformationMatrixes?: VisionMatrix[];
+    faceBlendshapes?: BlendshapeList;
   };
   close: () => void;
 };
 
 let landmarkerPromise: Promise<FaceDetector> | null = null;
 
-const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const WASM_BASE = MEDIAPIPE_WASM_BASE;
+const MODEL_URL = MEDIAPIPE_FACE_LANDMARKER_URL;
 
 function loadLandmarker(): Promise<FaceDetector> {
   if (landmarkerPromise) return landmarkerPromise;
@@ -46,7 +52,7 @@ function loadLandmarker(): Promise<FaceDetector> {
       runningMode: "IMAGE" as const,
       numFaces: 3,
       minFaceDetectionConfidence: 0.5,
-      outputFaceBlendshapes: false,
+      outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
     };
     try {
@@ -90,6 +96,7 @@ type LiveLandmarker = {
   ) => {
     faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
     facialTransformationMatrixes?: VisionMatrix[];
+    faceBlendshapes?: BlendshapeList;
   };
   close: () => void;
 };
@@ -136,7 +143,7 @@ function loadLiveLandmarker(): Promise<LiveLandmarker> {
       runningMode: "VIDEO" as const,
       numFaces: 2,
       minFaceDetectionConfidence: 0.5,
-      outputFaceBlendshapes: false,
+      outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
     };
     try {
@@ -196,6 +203,7 @@ export async function detectLiveFace(video: HTMLVideoElement, now: number): Prom
 function mapDetection(result: {
   faceLandmarks: Array<Array<{ x: number; y: number; z?: number; visibility?: number }>>;
   facialTransformationMatrixes?: VisionMatrix[];
+  faceBlendshapes?: BlendshapeList;
 }): RawDetection {
   return {
     faces: result.faceLandmarks.map((face) =>
@@ -207,6 +215,7 @@ function mapDetection(result: {
       })),
     ),
     transforms: facialMatricesFromVision(result.facialTransformationMatrixes),
+    expression: expressionFromBlendshapes(result.faceBlendshapes?.[0]?.categories),
   };
 }
 
