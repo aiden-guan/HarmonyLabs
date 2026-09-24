@@ -154,7 +154,7 @@ export function AskPanel({ analysisId, disabled }: { analysisId: string; disable
                     <>
                       <Bot className="h-3.5 w-3.5 text-accent" />
                       <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-accent">
-                        {message.mode === "model" ? "MogLabs Assistant" : "Structured Explanation"}
+                        {message.mode === "model" ? "HarmonyLabs Assistant" : "Structured Explanation"}
                       </span>
                     </>
                   )}

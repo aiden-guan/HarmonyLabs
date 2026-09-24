@@ -16,7 +16,7 @@ export interface SessionUser {
 }
 
 function devSecret(): string {
-  return process.env.FACELAB_DEV_SECRET || "facelab-dev-only-secret";
+  return process.env.HARMONYLABS_DEV_SECRET || "harmonylabs-dev-only-secret";
 }
 
 function sign(payload: string): string {

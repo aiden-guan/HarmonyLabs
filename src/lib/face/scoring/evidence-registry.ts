@@ -76,7 +76,7 @@ function symmetry(
     references: SYMMETRY_REFS,
     limitations: SYMMETRY_LIMITS,
     formulaCompatibilityNotes: [
-      "Direction (lower asymmetry scores higher) follows the experiments. The percent scale is a MogLabs photographic summary.",
+      "Direction (lower asymmetry scores higher) follows the experiments. The percent scale is a HarmonyLabs photographic summary.",
     ],
     accuracyBudget: budget,
   };
@@ -179,7 +179,7 @@ export const evidenceRegistry: Record<string, MetricEvidence> = {
     limitations: [
       "Scored only when trichion is placed. The mesh forehead apex is not the hairline.",
       "The source faces were female and Caucasian. This is a relational ratio, not a race score, and generalization confidence is moderate.",
-      "Their 46% width ratio is not used. MogLabs does not measure the inner ear margins.",
+      "Their 46% width ratio is not used. HarmonyLabs does not measure the inner ear margins.",
     ],
     formulaCompatibilityNotes: [
       "Eye–mouth distance is the vertical span from the pupil midpoint to stomion. Face length is trichion to menton. Pallett used the eyes, the mouth, the hairline, and the chin.",
@@ -231,7 +231,7 @@ export const evidenceRegistry: Record<string, MetricEvidence> = {
       "Naini 2012 supports straighter profiles but uses a different convexity angle, so its ±10° to −12° limits are not copied.",
     ],
     formulaCompatibilityNotes: [
-      "MogLabs uses the interior angle at subnasale between glabella and pogonion, matching Fortes G′–Sn–Pg′ more closely than total convexity G′–Pn–Pg′.",
+      "HarmonyLabs uses the interior angle at subnasale between glabella and pogonion, matching Fortes G′–Sn–Pg′ more closely than total convexity G′–Pn–Pg′.",
     ],
     accuracyBudget: ["Profile yaw short of a true lateral", "glabella and pogonion on the contour", "perspective", "expression"],
   },
@@ -277,7 +277,7 @@ export const evidenceRegistry: Record<string, MetricEvidence> = {
       "Fortes et al. did not find nasolabial angle separated pleasant from unpleasant profiles.",
     ],
     formulaCompatibilityNotes: [
-      "The cited angle is the columella tangent against the upper-lip tangent at subnasale. MogLabs approximates those tangents with columella, subnasale, and labiale superius on a smoothed profile contour.",
+      "The cited angle is the columella tangent against the upper-lip tangent at subnasale. HarmonyLabs approximates those tangents with columella, subnasale, and labiale superius on a smoothed profile contour.",
     ],
     accuracyBudget: ["Columella localization", "upper-lip contour", "expression", "profile yaw", "perspective", "contour smoothing"],
   },
@@ -600,7 +600,7 @@ export const evidenceRegistry: Record<string, MetricEvidence> = {
     25,
     45,
     [
-      "MogLabs measures the smaller angle between nasion–rhinion and glabella–pogonion.",
+      "HarmonyLabs measures the smaller angle between nasion–rhinion and glabella–pogonion.",
       "Okumura et al. measured nasion–pronasale against a Frankfort vertical. Those 30° and 33° preferences are not copied.",
     ],
     ["Different reference line. Informational only."],
@@ -614,10 +614,10 @@ export const evidenceRegistry: Record<string, MetricEvidence> = {
     0.2,
     0.6,
     [
-      "Custom MogLabs tip offset: distance from pronasale to the nasion–subnasale line, divided by nasion–pronasale.",
+      "Custom HarmonyLabs tip offset: distance from pronasale to the nasion–subnasale line, divided by nasion–pronasale.",
       "This is not Goode's ratio. The alar-facial groove is not on the anterior silhouette, so a Goode target is not applied.",
     ],
-    ["Labelled as a MogLabs construction. Clinical 0.55–0.60 norms are not used."],
+    ["Labelled as a HarmonyLabs construction. Clinical 0.55–0.60 norms are not used."],
     ["Pronasale", "nasion–subnasale line", "perspective", "profile yaw"],
     [PASKHOVER_2018, MEDIAPIPE_DOCS],
   ),

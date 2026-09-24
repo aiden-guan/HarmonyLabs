@@ -12,7 +12,7 @@ export interface ResultSharePreviewProps {
 }
 
 /**
- * Renders the 4:5 portrait preview for the MogLabs share card.
+ * Renders the 4:5 portrait preview for the HarmonyLabs share card.
  * Maintains a consistent layout corresponding to the 1080x1350 canvas output.
  */
 export function ResultSharePreview({
@@ -49,7 +49,7 @@ export function ResultSharePreview({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={previewUrl}
-          alt="MogLabs Shareable Result Card Preview"
+          alt="HarmonyLabs Shareable Result Card Preview"
           className="h-full w-full object-contain"
         />
       ) : null}

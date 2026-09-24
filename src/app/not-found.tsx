@@ -10,7 +10,7 @@ export default function NotFound() {
         <div className="flex justify-center mb-4">
           <Link href="/" className="inline-flex items-center gap-2">
             <Mark className="h-8 w-8 text-accent" />
-            <span className="text-xl font-bold tracking-tight text-ink">MogLabs</span>
+            <span className="text-xl font-bold tracking-tight text-ink">HarmonyLabs</span>
           </Link>
         </div>
 
@@ -21,7 +21,7 @@ export default function NotFound() {
             </span>
             <CardTitle className="text-2xl mt-1">Page not found</CardTitle>
             <CardDescription className="mt-2">
-              This route does not exist in MogLabs or may have been relocated.
+              This route does not exist in HarmonyLabs or may have been relocated.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-2">

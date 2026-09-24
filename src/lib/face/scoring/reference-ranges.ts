@@ -17,7 +17,7 @@ const experimental = (
 ): ReferenceConfig => ({
   ...values,
   confidence: "experimental",
-  source: `Experimental MogLabs band. ${note} These limits are application choices, not a clinical dataset.`,
+  source: `Experimental HarmonyLabs band. ${note} These limits are application choices, not a clinical dataset.`,
 });
 
 /** Usual band with the middle half marked ideal. */

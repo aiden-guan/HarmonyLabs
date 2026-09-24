@@ -5,7 +5,7 @@ export function isConvexConfigured(): boolean {
 export function isDevAuthEnabled(): boolean {
   if (process.env.NODE_ENV === "production") return false;
   if (isConvexConfigured()) return false;
-  return process.env.FACELAB_DEV_AUTH !== "0";
+  return process.env.HARMONYLABS_DEV_AUTH !== "0";
 }
 
 export function isAiConfigured(): boolean {

@@ -67,7 +67,7 @@ export interface MetricEvidence {
   evidenceLevel: EvidenceLevel;
   /** Photographic repeatability prior, before this capture's landmark confidence. */
   measurementReliability: number;
-  /** 1 when the MogLabs formula matches the cited definition. */
+  /** 1 when the HarmonyLabs formula matches the cited definition. */
   formulaCompatibility: number;
   /**
    * Extra reduction when an optional presentation profile uses a study whose

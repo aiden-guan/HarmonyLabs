@@ -52,7 +52,7 @@ export function getMonoFont(weight: number, size: number): string {
 }
 
 /**
- * Renders the 1080x1350 MogLabs shareable portrait card onto a canvas and returns a PNG Blob.
+ * Renders the 1080x1350 HarmonyLabs shareable portrait card onto a canvas and returns a PNG Blob.
  */
 export async function renderResultCard(options: RenderCardOptions): Promise<Blob> {
   const { image, harmonyScore, frontScore, profileScore, landmarks, focusY } = options;
@@ -149,7 +149,7 @@ export async function renderResultCard(options: RenderCardOptions): Promise<Blob
   // 5A. Brand Header Row
   const brandRowY = footerTop + 68;
 
-  // MogLabs Logo Mark (Geometric square + crosshair + center circle, matching Mark component)
+  // HarmonyLabs Logo Mark (Geometric square + crosshair + center circle, matching Mark component)
   const markSize = 40;
   const markX = leftMargin;
   const markY = brandRowY - 26;
@@ -180,12 +180,12 @@ export async function renderResultCard(options: RenderCardOptions): Promise<Blob
   ctx.arc(markX + markSize / 2, markY + markSize / 2, 7, 0, Math.PI * 2);
   ctx.stroke();
 
-  // MogLabs Wordmark
+  // HarmonyLabs Wordmark
   ctx.fillStyle = "#f8fafc";
   ctx.font = getSansFont(700, 32);
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
-  ctx.fillText("MOGLABS", markX + markSize + 16, brandRowY - 6);
+  ctx.fillText("HARMONYLABS", markX + markSize + 16, brandRowY - 6);
 
   // Label at right
   ctx.fillStyle = "#64748b";

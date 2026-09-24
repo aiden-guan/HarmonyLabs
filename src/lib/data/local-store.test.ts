@@ -7,8 +7,8 @@ import type { SessionUser } from "@/lib/auth/session";
 let directory = "";
 
 beforeAll(async () => {
-  directory = await mkdtemp(path.join(os.tmpdir(), "facelab-store-"));
-  process.env.FACELAB_DATA_DIR = directory;
+  directory = await mkdtemp(path.join(os.tmpdir(), "harmonylabs-store-"));
+  process.env.HARMONYLABS_DATA_DIR = directory;
 });
 
 afterAll(async () => {

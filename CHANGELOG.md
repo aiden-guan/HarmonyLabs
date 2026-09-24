@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026-09-24 — Rebrand to HarmonyLabs
+
+### Summary
+Comprehensive product rebranding across the entire application, developer tooling, session cookies, database migrations, documentation, and client-side social card renderer from MogLabs and FaceLabs to HarmonyLabs.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Product Identity** | Renamed product surface to HarmonyLabs across navigation, metadata, landing page, and modals | Unifies brand identity under HarmonyLabs without legacy MogLabs or FaceLabs references |
+| **Shareable Social Card** | Updated Canvas rendering and file downloads to `HARMONYLABS` and `HarmonyLabs-result.png` | Ensures exported 1080×1350 assets match current branding |
+| **Authentication & Store** | Renamed environment variables and cookies to `HARMONYLABS_*` and `harmonylabs_*` | Clean separation and consistency across development sessions and file paths |
+| **Documentation & Validation** | Renamed validation guide to `HARMONYLABS_VALIDATION_AND_EVIDENCE.md` and refreshed evidence registry | Eliminates stale references across research documentation and test suites |
+
+### Detailed Changes
+
+#### Changed / Refactored
+- **Branding & UI**:
+  - `src/app/layout.tsx`: Updated page title metadata to `HarmonyLabs`.
+  - `src/app/page.tsx`: Updated hero header, value propositions, privacy guarantees, and footer.
+  - `src/components/app-shell/shell.tsx`: Updated main application header brand.
+  - `src/components/auth/login-form.tsx`: Updated sign-in card header and brand title.
+  - `src/components/analysis/ask-panel.tsx`: Updated AI assistant label to `HarmonyLabs Assistant`.
+  - `src/components/analysis/analysis-view.tsx` & `src/components/upload/new-analysis-wizard.tsx`: Updated evidence scoring explanations and minor disclaimer.
+  - `src/lib/ai/prompts.ts`: Updated system prompt to `HarmonyLabs measurement assistant`.
+- **Share Card & Assets**:
+  - `src/lib/share/render-result-card.ts`: Updated wordmark to `HARMONYLABS`.
+  - `src/components/share/result-share-dialog.tsx`: Updated download filename to `HarmonyLabs-result.png` and Web Share API payload.
+  - `src/components/share/result-share-preview.tsx`: Updated preview alt tag and documentation comments.
+- **Config & Infrastructure**:
+  - `package.json`: Renamed package to `harmonylabs`.
+  - `.env.example` & `playwright.config.ts`: Updated environment variables from `FACELAB_*` to `HARMONYLABS_*`.
+  - `src/lib/auth/constants.ts`: Updated session cookies to `harmonylabs_dev_session` and `harmonylabs_guest_id`.
+  - `src/lib/auth/session.ts`: Updated session signing secret to `HARMONYLABS_DEV_SECRET`.
+  - `src/lib/data/local-store.ts` & `src/lib/data/local-store.test.ts`: Updated data directory to `HARMONYLABS_DATA_DIR` and temporary test prefixes to `harmonylabs-store-`.
+  - `supabase/migrations/20260922120000_init.sql`: Updated schema migration comment.
+- **Documentation**:
+  - Renamed `docs/MOGLABS_VALIDATION_AND_EVIDENCE.md` to `docs/HARMONYLABS_VALIDATION_AND_EVIDENCE.md`.
+  - `docs/measurement-evidence.md`: Re-rendered catalog with updated HarmonyLabs formula and construction notes.
+  - `README.md`: Updated titles, environment variable table, and evidence doc links.
+- **E2E & Unit Tests**:
+  - `e2e/analysis.spec.ts` & `e2e/responsive.spec.ts`: Updated email domains and asserted share download filename.
+  - `src/lib/face/scoring/evidence-document.test.ts`: Verified generated evidence document against updated HarmonyLabs registry.
+
+### Verification Proof
+- `pnpm test` — 114 unit and component tests passed across 24 test suites.
+- `pnpm typecheck` — 0 TypeScript errors.
+- `pnpm lint` — 0 ESLint errors.
+- `pnpm build` — Clean Next.js 16 production build.
+
 ## 2026-09-23 — Vercel CI/CD & GitHub Actions pipeline
 
 ### Summary
@@ -38,7 +87,7 @@ Allow users to complete the entire facial geometry analysis wizard and landmark 
 ### Architectural & Functional Highlights
 | Component / Layer | Change | Impact |
 | :--- | :--- | :--- |
-| **Guest session & caller abstraction** | Anonymous guest cookie (`facelab_guest_id`) and unified `getAnalysisCaller` | Enables full capture and landmark editing without authentication friction or database schema violations |
+| **Guest session & caller abstraction** | Anonymous guest cookie (`harmonylabs_guest_id`) and unified `getAnalysisCaller` | Enables full capture and landmark editing without authentication friction or database schema violations |
 | **Results gating** | Gated `/analysis/[analysisId]` and landmark completion handoff with `reason=view_results` | Prompts account creation at maximum intent (when measurements are computed) instead of bouncing visitors upfront |
 | **Automated analysis claiming** | `claimGuestAnalyses` in local store and Convex (`claimGuest` mutation) | Seamlessly transfers analyses, photos on disk/storage, and threads to authenticated accounts upon sign-in |
 | **Middleware routing** | Selective route allowance in `src/proxy.ts` | Allows guest access to `/analysis/new` and `/analysis/[id]/edit` while strictly protecting report and account surfaces |
@@ -47,7 +96,7 @@ Allow users to complete the entire facial geometry analysis wizard and landmark 
 
 #### Added
 - **Session & Identity**:
-  - `GUEST_SESSION_COOKIE = "facelab_guest_id"` constant in `src/lib/auth/constants.ts`.
+  - `GUEST_SESSION_COOKIE = "harmonylabs_guest_id"` constant in `src/lib/auth/constants.ts`.
   - `getGuestId()`, `getOrCreateGuestId()`, and `clearGuestId()` cookie helpers in `src/lib/auth/session.ts`.
   - `getAnalysisCaller()` and `getExistingAnalysisCaller()` in `src/lib/api.ts`.
 - **Database & Storage Migration**:
@@ -102,12 +151,12 @@ The front camera capture now advances to the three-quarter step after a local ch
 ## 2026-09-23
 
 ### Summary
-Complete production-quality UI/UX overhaul transforming the application from an early MVP into a polished facial measurement product, featuring an original MogLabs design system, refined top navigation, photo-forward result reports, interactive measurement studio, and a client-side 1080×1350 (4:5) shareable result card with Web Share API and PNG download fallback.
+Complete production-quality UI/UX overhaul transforming the application from an early MVP into a polished facial measurement product, featuring an original HarmonyLabs design system, refined top navigation, photo-forward result reports, interactive measurement studio, and a client-side 1080×1350 (4:5) shareable result card with Web Share API and PNG download fallback.
 
 ### Architectural & Functional Highlights
 | Component / Layer | Change | Impact |
 | :--- | :--- | :--- |
-| **Shareable result image** | Client-side Canvas rendering (1080×1350, 4:5 portrait) with landmark-aware cover crop and computed typography | High-resolution social export (Instagram/X/Discord) featuring front photograph, Harmony score, and MogLabs branding without server-side image leakage |
+| **Shareable result image** | Client-side Canvas rendering (1080×1350, 4:5 portrait) with landmark-aware cover crop and computed typography | High-resolution social export (Instagram/X/Discord) featuring front photograph, Harmony score, and HarmonyLabs branding without server-side image leakage |
 | **Share dialog & preview** | Dedicated `ResultSharePreview` component, Web Share API integration, automatic Download PNG fallback | Native mobile sheet sharing where supported; instant direct PNG download everywhere |
 | **Canvas font rendering** | Resolved computed font families dynamically to fix Canvas rejection of CSS `var()` shorthand | Restored proper bold typography on generated PNG cards across all browsers |
 | **Application navigation** | Replaced 220px desktop sidebar with responsive top application header and mobile drawer | Maximizes horizontal workspace for photography while keeping Dashboard, Analyze, Compare, and New analysis accessible |
@@ -117,13 +166,13 @@ Complete production-quality UI/UX overhaul transforming the application from an 
 | **Measurement browser** | Two-column desktop studio with sticky detail panel, reference citations, and SVG overlays | Fluid filtering, instant search, and redesigned RangeTrack component while preserving scoring algorithms |
 | **Dashboard** | Latest analysis hero card with front photo thumbnail, trend progression, and saved scans | Immediate visibility into latest scan results, progress over time, and scan history |
 | **Capture flow** | 4-step guided wizard (Setup, Front, Profile, Check) with distinct quality badges | Clear separation between camera mode and upload mode without touching sensitive optical correction logic |
-| **Branding normalization** | Normalized user-facing product branding from FaceLab to MogLabs | Unified product identity across metadata, headers, landing page, auth, reference citations, and dialogs |
+| **Branding normalization** | Normalized user-facing product branding to HarmonyLabs | Unified product identity across metadata, headers, landing page, auth, reference citations, and dialogs |
 
 ### Detailed Changes
 
 #### Added
 - **Share system (`src/lib/share/` & `src/components/share/`)**:
-  - `render-result-card.ts`: Deterministic 1080×1350 Canvas generator with 70% portrait cover crop, lab alignment brackets, high-resolution typography (120px Harmony score), and MogLabs brand mark.
+  - `render-result-card.ts`: Deterministic 1080×1350 Canvas generator with 70% portrait cover crop, lab alignment brackets, high-resolution typography (120px Harmony score), and HarmonyLabs brand mark.
   - `crop.ts`: Landmark-aware cover crop calculation with vertical centering on detected facial bounds and safe boundary clamping.
   - `result-share-preview.tsx`: Dedicated live 4:5 preview component with lab registration corners, loading spinner, and error handling.
   - `result-share-dialog.tsx`: Modal dialog with live preview, Web Share API (`navigator.share({ files: [...] })`), and PNG file download fallback.
@@ -145,7 +194,7 @@ Complete production-quality UI/UX overhaul transforming the application from an 
 - **Landmark editor (`src/components/landmark-editor/editor.tsx`)**: Upgraded toolbar, view switcher, landmark inspector card, and keyboard controls; removed duplicate outer header on `/analysis/[analysisId]/edit`.
 - **Compare studio (`src/components/analysis/compare-view.tsx`)**: Added paired front photo thumbnails, head-to-head score deltas, and side-by-side metric tables.
 - **Range track (`src/components/analysis/range-track.tsx`)**: Polished visual zones and indicators while keeping test-asserted labels and standing markers intact.
-- **Login (`src/components/auth/login-form.tsx`)**: Redesigned centered authentication card with MogLabs branding and clear developer sign-in feedback.
+- **Login (`src/components/auth/login-form.tsx`)**: Redesigned centered authentication card with HarmonyLabs branding and clear developer sign-in feedback.
 - **Settings (`src/components/settings/settings-form.tsx`)**: Structured preference layout with distinct danger zone for account data deletion.
 - **Local store (`src/lib/data/local-store.ts`)**: Made atomic temporary write filenames unique to eliminate concurrent write/rename race conditions during parallel test runs.
 

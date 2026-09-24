@@ -100,7 +100,7 @@ function ResultShareDialogContent({ analysis }: { analysis: AnalysisDetail }) {
         // Check Web Share API capability
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           try {
-            const testFile = new File([generatedBlob], "MogLabs-result.png", { type: "image/png" });
+            const testFile = new File([generatedBlob], "HarmonyLabs-result.png", { type: "image/png" });
             if (navigator.canShare && navigator.canShare({ files: [testFile] })) {
               setCanShare(true);
             }
@@ -134,11 +134,11 @@ function ResultShareDialogContent({ analysis }: { analysis: AnalysisDetail }) {
     if (!blob) return;
 
     try {
-      const file = new File([blob], "MogLabs-result.png", { type: "image/png" });
+      const file = new File([blob], "HarmonyLabs-result.png", { type: "image/png" });
       await navigator.share({
         files: [file],
-        title: "MogLabs Facial Geometry",
-        text: `MogLabs Proportional Harmony: ${formatScore(analysis.harmonyScore)} / 10`,
+        title: "HarmonyLabs Facial Geometry",
+        text: `HarmonyLabs Proportional Harmony: ${formatScore(analysis.harmonyScore)} / 10`,
       });
       setShared(true);
       setTimeout(() => setShared(false), 3000);
@@ -155,7 +155,7 @@ function ResultShareDialogContent({ analysis }: { analysis: AnalysisDetail }) {
 
     const link = document.createElement("a");
     link.href = previewUrl;
-    link.download = "MogLabs-result.png";
+    link.download = "HarmonyLabs-result.png";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

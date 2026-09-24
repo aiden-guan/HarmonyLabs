@@ -26,7 +26,7 @@ for (const vp of viewports) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto("/auth/login");
 
-    await expect(page.getByRole("heading", { name: "Sign in to MogLabs" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to HarmonyLabs" })).toBeVisible();
 
     const hasHorizontalOverflow = await page.evaluate(() => {
       return document.documentElement.scrollWidth > window.innerWidth;
@@ -39,7 +39,7 @@ for (const vp of viewports) {
 
     // Authenticate via dev login
     await page.goto("/auth/login?next=/dashboard");
-    await page.getByLabel("Email").fill(`responsive-${vp.name}@moglabs.test`);
+    await page.getByLabel("Email").fill(`responsive-${vp.name}@harmonylabs.test`);
     await page.getByRole("button", { name: "Continue" }).click();
 
     // Verify dashboard

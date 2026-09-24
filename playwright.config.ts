@@ -20,8 +20,8 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_E2E: "1",
-      FACELAB_DATA_DIR: ".data-e2e",
-      FACELAB_DEV_AUTH: "1",
+      HARMONYLABS_DATA_DIR: ".data-e2e",
+      HARMONYLABS_DEV_AUTH: "1",
       NEXT_PUBLIC_CONVEX_URL: "",
     },
   },

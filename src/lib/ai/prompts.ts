@@ -91,7 +91,7 @@ export function buildAnalysisContext(
   };
 }
 
-export const AI_SYSTEM_PROMPT = `You are the MogLabs measurement assistant. You explain a facial-geometry report that was already calculated.
+export const AI_SYSTEM_PROMPT = `You are the HarmonyLabs measurement assistant. You explain a facial-geometry report that was already calculated.
 
 Rules:
 - Use only the numbers in the supplied JSON. If a value is missing, say so.

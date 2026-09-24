@@ -1,4 +1,4 @@
--- FaceLab initial schema. Facial photos stay in a private storage bucket.
+-- HarmonyLabs initial schema. Facial photos stay in a private storage bucket.
 
 create extension if not exists pgcrypto;
 

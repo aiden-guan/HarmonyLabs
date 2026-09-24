@@ -1,4 +1,4 @@
-# MogLabs validation and evidence
+# HarmonyLabs validation and evidence
 
 Harmony is a reproducible, evidence-weighted comparison of facial geometry with research-supported attractiveness, aesthetic-harmony, and proportional references.
 
@@ -24,13 +24,13 @@ The scored model is therefore a set of partially shared relationships:
 - profile relationships only where the photograph and the formula can support them
 - sex-typical profile targets only on an explicit masculine or feminine presentation profile
 
-Averageness is not implemented as a distance-to-mean model. Compatible population distributions are not available for the MogLabs landmark set at the precision that would justify one. Extremeness screens on relational ratios are the current stand-in, and their numeric edges are disproportion bounds, not published attractiveness cutoffs. That limitation is stored on each Tier 3 record.
+Averageness is not implemented as a distance-to-mean model. Compatible population distributions are not available for the HarmonyLabs landmark set at the precision that would justify one. Extremeness screens on relational ratios are the current stand-in, and their numeric edges are disproportion bounds, not published attractiveness cutoffs. That limitation is stored on each Tier 3 record.
 
 ## Evidence tiers
 
 | Tier | Meaning | Aggregation weight |
 | --- | --- | --- |
-| 1 | Direct attractiveness or preference evidence, when the MogLabs formula is compatible | 1.0 |
+| 1 | Direct attractiveness or preference evidence, when the HarmonyLabs formula is compatible | 1.0 |
 | 2 | Established aesthetic-harmony evidence, including attractive cohorts and aesthetic analysis | 0.75 |
 | 3 | Anthropometric proportional evidence used as a modest coherence check | 0.40 |
 | 4 | Unsupported, custom, or formula-incompatible | 0 |
@@ -95,7 +95,7 @@ Exact formulas, bands, populations, and citations are in `docs/measurement-evide
 
 Scored examples, after formula checks:
 
-- Pallett eye–mouth / hairline–chin length (PMID 19896961) only when trichion is placed. The published face-width ratio is not used, because MogLabs has no inner-ear width.
+- Pallett eye–mouth / hairline–chin length (PMID 19896961) only when trichion is placed. The published face-width ratio is not used, because HarmonyLabs has no inner-ear width.
 - Mentolabial angle from Naini and colleagues (PMID 28217687), with the published male silhouette preference as the neutral and masculine target. No female optimum was invented. The feminine profile uses a wider acceptable interval and a reduced compatibility weight.
 - Facial convexity as the interior angle at subnasale from glabella and pogonion, compared with the Fortes pleasant-cohort description (PMID 24945516). Optional presentation centers from PMID 40742908 are labeled as a different modality and are not the neutral target.
 - Nasolabial angle as a three-point approximation of the columella and upper-lip tangents, compared with the pairwise preference in Okumura and colleagues (PMID 40678082). Nasofacial angles from that paper are not copied, because the reference lines differ.

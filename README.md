@@ -1,6 +1,6 @@
-# MogLabs
+# HarmonyLabs
 
-MogLabs measures facial geometry from a front photograph and a side-profile photograph. Computer vision proposes landmarks. You can move them. Distances, angles, and ratios are then calculated from those points.
+HarmonyLabs measures facial geometry from a front photograph and a side-profile photograph. Computer vision proposes landmarks. You can move them. Distances, angles, and ratios are then calculated from those points.
 
 Harmony V2 compares those measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence. Harmony is not a clinical diagnostic score. It is not a perfect or universal mathematical definition of attractiveness.
 
@@ -18,7 +18,7 @@ Image
 → Harmony
 ```
 
-An optional language model can explain the structured report. It does not create the measurements or the score. If no model is configured, MogLabs answers from the same structured numbers.
+An optional language model can explain the structured report. It does not create the measurements or the score. If no model is configured, HarmonyLabs answers from the same structured numbers.
 
 Left-facing profiles are mirrored into a right-facing frame before landmark mapping, and the stored photograph is flipped to match. Anterior is the larger x direction.
 
@@ -42,9 +42,9 @@ Copy `.env.example` to `.env.local`.
 | `AI_BASE_URL` | Optional | API origin, for example `https://api.openai.com/v1` |
 | `AI_MODEL` | Optional | Model name sent with explanation requests |
 | `NEXT_PUBLIC_MAX_UPLOAD_MB` | Optional | Upload limit. Defaults to 10 |
-| `FACELAB_DEV_AUTH` | Optional | Set to `0` to disable development sign-in |
-| `FACELAB_DEV_SECRET` | Optional | Signs the development session cookie |
-| `FACELAB_DATA_DIR` | Optional | Overrides the local JSON store directory |
+| `HARMONYLABS_DEV_AUTH` | Optional | Set to `0` to disable development sign-in |
+| `HARMONYLABS_DEV_SECRET` | Optional | Signs the development session cookie |
+| `HARMONYLABS_DATA_DIR` | Optional | Overrides the local JSON store directory |
 
 `NEXT_PUBLIC_E2E=1` replaces the face detector with a fixture mesh. It is ignored in production.
 
@@ -68,9 +68,9 @@ Aggregation is metric, then feature group, then view. Front Harmony and Profile 
 
 `src/lib/face/scoring/reference-ranges.ts` is the frozen Harmony V1 table. New analyses do not use it. Stored V1 results stay on `harmony-v1` and are not rewritten. Comparisons warn when the two scoring versions differ.
 
-Optional masculine and feminine reference profiles are applied only when the user selects them. MogLabs does not infer sex, gender, race, or ethnicity, and it does not estimate age. Aesthetic scoring is withheld unless the analysis is acknowledged as an adult.
+Optional masculine and feminine reference profiles are applied only when the user selects them. HarmonyLabs does not infer sex, gender, race, or ethnicity, and it does not estimate age. Aesthetic scoring is withheld unless the analysis is acknowledged as an adult.
 
-The per-metric registry, formulas, and citations are in `docs/measurement-evidence.md`. The validation model is in `docs/MOGLABS_VALIDATION_AND_EVIDENCE.md`.
+The per-metric registry, formulas, and citations are in `docs/measurement-evidence.md`. The validation model is in `docs/HARMONYLABS_VALIDATION_AND_EVIDENCE.md`.
 
 ## Testing
 

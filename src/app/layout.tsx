@@ -24,8 +24,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "MogLabs",
-    template: "%s · MogLabs",
+    default: "HarmonyLabs",
+    template: "%s · HarmonyLabs",
   },
   description:
     "Measure facial geometry from front and profile photographs using landmarks, ratios, and a transparent reference score.",

@@ -84,7 +84,7 @@ const emptyQuality = (): PhotoQuality => ({
 });
 
 function dataDir(): string {
-  return process.env.FACELAB_DATA_DIR || path.join(process.cwd(), ".data");
+  return process.env.HARMONYLABS_DATA_DIR || path.join(process.cwd(), ".data");
 }
 
 function dbPath(): string {

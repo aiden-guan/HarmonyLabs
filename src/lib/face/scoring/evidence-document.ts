@@ -16,7 +16,7 @@ export function renderEvidenceMarkdown(): string {
     const refs = evidence.references
       .map((reference) => {
         const id = reference.pmid ? `PMID ${reference.pmid}` : reference.doi ? `DOI ${reference.doi}` : "no indexed id";
-        return `${reference.authors ?? "MogLabs context"} (${reference.year}). ${reference.title}. ${id}. Population: ${reference.population}. ${reference.methodology}`;
+        return `${reference.authors ?? "HarmonyLabs context"} (${reference.year}). ${reference.title}. ${id}. Population: ${reference.population}. ${reference.methodology}`;
       })
       .join(" ");
     return [

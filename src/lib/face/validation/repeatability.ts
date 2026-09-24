@@ -51,7 +51,7 @@ export function summarizeRepeats(values: number[]): RepeatabilitySummary | null 
  * Balanced one-way ICC(1). Returns null unless every group has the same
  * number of repeats and there are at least two groups. Identical groups
  * return 1. This is a statistic of the supplied repeats, not a published
- * reliability coefficient for MogLabs.
+ * reliability coefficient for HarmonyLabs.
  */
 export function iccOneWay(groups: number[][]): number | null {
   const clean = groups.map((group) => finite(group)).filter((group) => group.length >= 2);

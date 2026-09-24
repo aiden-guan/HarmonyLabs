@@ -520,7 +520,7 @@ export function NewAnalysisWizard() {
               <CardHeader>
                 <CardTitle>Session details</CardTitle>
                 <CardDescription>
-                  MogLabs compares reproducible facial measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence on Harmony.
+                  HarmonyLabs compares reproducible facial measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence on Harmony.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -577,7 +577,7 @@ export function NewAnalysisWizard() {
                       onChange={(event) => setAdultAcknowledged(event.target.checked)}
                       required
                     />
-                    <span>This analysis is of an adult (18+). MogLabs does not estimate age and does not apply these references to minors.</span>
+                    <span>This analysis is of an adult (18+). HarmonyLabs does not estimate age and does not apply these references to minors.</span>
                   </label>
 
                   <div className="rounded-md border border-line bg-panel-muted p-3 text-xs text-muted leading-relaxed">

@@ -23,11 +23,11 @@ export function LoginForm({ convex, devAuth }: { convex: boolean; devAuth: boole
         <div className="flex justify-center mb-2">
           <Link href="/" className="inline-flex items-center gap-2 group">
             <Mark className="h-8 w-8 text-accent transition-transform group-hover:scale-105" />
-            <span className="text-xl font-bold tracking-tight text-ink">MogLabs</span>
+            <span className="text-xl font-bold tracking-tight text-ink">HarmonyLabs</span>
           </Link>
         </div>
         <h1 className="mt-4 text-center text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          {isResultUnlock ? "Your analysis is ready" : "Sign in to MogLabs"}
+          {isResultUnlock ? "Your analysis is ready" : "Sign in to HarmonyLabs"}
         </h1>
         <p className="mt-2 text-center text-xs text-muted leading-relaxed max-w-sm mx-auto">
           {isResultUnlock

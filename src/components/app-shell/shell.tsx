@@ -62,7 +62,7 @@ export function AppShell({
               className="flex items-center gap-2.5 font-semibold tracking-tight text-ink transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent"
             >
               <Mark className="h-6 w-6 text-accent" />
-              <span className="text-base font-bold tracking-tight">MogLabs</span>
+              <span className="text-base font-bold tracking-tight">HarmonyLabs</span>
             </Link>
 
             {/* Desktop Navigation Links */}

@@ -1,5 +1,5 @@
 /**
- * FaceLab never mixes pixel distances into a score.
+ * HarmonyLabs never mixes pixel distances into a score.
  * Every metric declares one of these relationships. Ratios are dimensionless.
  * Angles are degrees. Symmetry values are percentages of a named reference span.
  */

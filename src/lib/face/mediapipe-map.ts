@@ -9,7 +9,7 @@ import type {
 } from "@/types/face";
 
 /**
- * MediaPipe Face Landmarker vertices used by FaceLab.
+ * MediaPipe Face Landmarker vertices used by HarmonyLabs.
  * These are mesh indices, not anatomical ground truth. Indices stay in this file.
  *
  * Left and right follow the MediaPipe template: the subject's left and right

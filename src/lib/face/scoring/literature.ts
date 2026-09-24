@@ -68,7 +68,7 @@ export const OKUMURA_2025: LiteratureReference = {
     "Nasolabial angle, defined by a columella tangent and an upper-lip tangent at subnasale, was shown at 95°, 105°, and 115°.",
   findingType: "preference-experiment",
   notes:
-    "Pairwise ratings preferred 95° on the male model and 105° on the female model. A weighted-average summary in the same paper lands on 105° for both; MogLabs uses the pairwise preference and treats the conflict as a limitation. Nasofacial angles in this paper use Frankfort vertical and are not copied onto the MogLabs nasofacial line pair.",
+    "Pairwise ratings preferred 95° on the male model and 105° on the female model. A weighted-average summary in the same paper lands on 105° for both; HarmonyLabs uses the pairwise preference and treats the conflict as a limitation. Nasofacial angles in this paper use Frankfort vertical and are not copied onto the HarmonyLabs nasofacial line pair.",
 };
 
 export const SINNO_2012: LiteratureReference = {
@@ -172,7 +172,7 @@ export const PASKHOVER_2018: LiteratureReference = {
   population: "Nasal appearance at selfie distances versus a standardized distance",
   methodology: "Compared nasal dimensions as camera distance decreased.",
   findingType: "anthropometry",
-  notes: "Close cameras enlarge the nose. MogLabs does not claim radial lens correction undoes that perspective effect.",
+  notes: "Close cameras enlarge the nose. HarmonyLabs does not claim radial lens correction undoes that perspective effect.",
 };
 
 export const DISTORTION_2023: LiteratureReference = {

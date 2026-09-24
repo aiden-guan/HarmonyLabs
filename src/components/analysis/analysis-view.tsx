@@ -201,7 +201,7 @@ export function AnalysisView({ analysis }: { analysis: AnalysisDetail }) {
               <details className="mt-4 text-xs text-muted leading-relaxed">
                 <summary className="cursor-pointer font-medium text-ink">How Harmony is built</summary>
                 <p className="mt-2">
-                  MogLabs compares reproducible facial measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence on Harmony.
+                  HarmonyLabs compares reproducible facial measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence on Harmony.
                 </p>
                 <p className="mt-2">
                   Some references come from direct attractiveness experiments, while others come from established aesthetic or anthropometric research. Evidence strength is shown for each measurement. Harmony is not a clinical diagnosis and not a universal mathematical face.

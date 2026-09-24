@@ -12,7 +12,7 @@ test.beforeAll(() => {
 test("sign in, upload, adjust a landmark, read report, and export shareable card", async ({ page }) => {
   await page.goto("/auth/login?next=/analysis/new");
   await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
-  await page.getByLabel("Email").fill(`qa-${Date.now()}@moglabs.test`);
+  await page.getByLabel("Email").fill(`qa-${Date.now()}@harmonylabs.test`);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("#content").getByText("New analysis")).toBeVisible();
 
@@ -68,7 +68,7 @@ test("sign in, upload, adjust a landmark, read report, and export shareable card
   await downloadButton.click();
   const download = await downloadPromise;
 
-  expect(download.suggestedFilename()).toBe("MogLabs-result.png");
+  expect(download.suggestedFilename()).toBe("HarmonyLabs-result.png");
   const downloadedPath = await download.path();
   expect(downloadedPath).toBeTruthy();
   if (downloadedPath) {
@@ -118,7 +118,7 @@ test("guest can do analysis for free, is required to sign in before viewing resu
   await expect(page.getByText("Create an account or sign in to view results")).toBeVisible();
 
   // Sign in / create account
-  await page.getByLabel("Email").fill(`free-guest-${Date.now()}@moglabs.test`);
+  await page.getByLabel("Email").fill(`free-guest-${Date.now()}@harmonylabs.test`);
   await page.getByRole("button", { name: "Continue to results" }).click();
 
   // User is redirected to results page with claimed analysis

@@ -20,7 +20,7 @@ export default function HomePage() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2.5 font-bold tracking-tight text-ink">
             <Mark className="h-6 w-6 text-accent" />
-            <span className="text-lg">MogLabs</span>
+            <span className="text-lg">HarmonyLabs</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted">
@@ -62,7 +62,7 @@ export default function HomePage() {
                 </h1>
 
                 <p className="max-w-2xl text-lg sm:text-xl text-muted leading-relaxed">
-                  MogLabs measures facial geometry from front and profile photographs using anatomical landmarks, exact angles, and ratios. Our Harmony score provides an objective reference without generative AI guessing or subjective attractiveness claims.
+                  HarmonyLabs measures facial geometry from front and profile photographs using anatomical landmarks, exact angles, and ratios. Our Harmony score provides an objective reference without generative AI guessing or subjective attractiveness claims.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -283,7 +283,7 @@ export default function HomePage() {
                 Built on geometry, not generative black boxes
               </h2>
               <p className="mt-3 text-sm text-muted leading-relaxed">
-                Most facial apps apply arbitrary AI filters or black-box neural ratings. MogLabs executes an open, deterministic mathematical pipeline.
+                Most facial apps apply arbitrary AI filters or black-box neural ratings. HarmonyLabs executes an open, deterministic mathematical pipeline.
               </p>
             </div>
 
@@ -329,7 +329,7 @@ export default function HomePage() {
                 </h2>
                 <div className="space-y-3 text-sm text-slate-300 leading-relaxed">
                   <p>
-                    Facial photography is sensitive biometric data. MogLabs never uses your images to train machine learning models.
+                    Facial photography is sensitive biometric data. HarmonyLabs never uses your images to train machine learning models.
                   </p>
                   <p>
                     Landmark detection runs locally in your browser session. Stored images are encrypted, authenticated, and never served via public unauthenticated links.
@@ -357,7 +357,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted">
           <div className="flex items-center gap-2">
             <Mark className="h-4 w-4 text-accent" />
-            <span className="font-semibold text-ink">MogLabs</span>
+            <span className="font-semibold text-ink">HarmonyLabs</span>
             <span>· Facial Proportions & Geometry</span>
           </div>
           <p className="text-center sm:text-right">
