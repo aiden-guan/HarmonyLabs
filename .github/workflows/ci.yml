@@ -1,0 +1,162 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  verify:
+    name: Lint, Typecheck & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        run: pnpm lint
+
+      - name: Run TypeScript check
+        run: pnpm typecheck
+
+      - name: Run Unit Tests
+        run: pnpm test
+
+      - name: Verify Next.js Production Build
+        run: pnpm run build:vercel
+        env:
+          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL || 'https://quixotic-hornet-741.convex.cloud' }}
+
+  deploy-preview:
+    name: Vercel Preview Deploy
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Vercel Token
+        id: check-token
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "VERCEL_TOKEN not configured in GitHub Secrets. Vercel Git Integration will handle preview deployment natively."
+          fi
+
+      - name: Install pnpm
+        if: steps:check-token.outputs.has_token == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        if: steps:check-token.outputs.has_token == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        if: steps:check-token.outputs.has_token == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel Environment (Preview)
+        if: steps:check-token.outputs.has_token == 'true'
+        run: npx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_Es1nPvaqayQmbxftpOiyjDBK' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_uTe1nDeOsYSd8epvchR8qN7HQ56s' }}
+
+      - name: Build Preview Artifacts
+        if: steps:check-token.outputs.has_token == 'true'
+        run: npx vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_Es1nPvaqayQmbxftpOiyjDBK' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_uTe1nDeOsYSd8epvchR8qN7HQ56s' }}
+
+      - name: Deploy Preview to Vercel
+        if: steps:check-token.outputs.has_token == 'true'
+        run: npx vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_Es1nPvaqayQmbxftpOiyjDBK' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_uTe1nDeOsYSd8epvchR8qN7HQ56s' }}
+
+  deploy-production:
+    name: Vercel Production Deploy
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Vercel Token
+        id: check-token
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "VERCEL_TOKEN not configured in GitHub Secrets. Vercel Git Integration will handle production deployment natively."
+          fi
+
+      - name: Install pnpm
+        if: steps:check-token.outputs.has_token == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        if: steps:check-token.outputs.has_token == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        if: steps:check-token.outputs.has_token == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel Environment (Production)
+        if: steps:check-token.outputs.has_token == 'true'
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_Es1nPvaqayQmbxftpOiyjDBK' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_uTe1nDeOsYSd8epvchR8qN7HQ56s' }}
+
+      - name: Build Production Artifacts
+        if: steps:check-token.outputs.has_token == 'true'
+        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_Es1nPvaqayQmbxftpOiyjDBK' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_uTe1nDeOsYSd8epvchR8qN7HQ56s' }}
+
+      - name: Deploy Prebuilt Artifacts to Vercel Production
+        if: steps:check-token.outputs.has_token == 'true'
+        run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_Es1nPvaqayQmbxftpOiyjDBK' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_uTe1nDeOsYSd8epvchR8qN7HQ56s' }}

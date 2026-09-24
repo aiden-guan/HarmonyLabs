@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-23 — Vercel CI/CD & GitHub Actions pipeline
+
+### Summary
+Established automated CI/CD pipeline using GitHub Actions for quality gates (ESLint, TypeScript, Vitest, and production build checks) and integrated Vercel deployment with atomic Convex schema synchronization.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **GitHub Actions workflow** | Added `.github/workflows/ci.yml` with concurrency control | Automates PR checks and production deployment triggers on `main` |
+| **Vercel configuration** | Added `vercel.json` pointing to Next.js framework and `build:vercel` | Ensures reproducible Vercel build settings matching project specs |
+| **Atomic Convex build** | Added `build:vercel` script in `package.json` | Runs `npx convex deploy --cmd 'next build'` when `CONVEX_DEPLOY_KEY` is present, eliminating schema drift between backend and frontend |
+
+### Detailed Changes
+
+#### Added
+- **`.github/workflows/ci.yml`**:
+  - `verify` job running ESLint, TypeScript check, Vitest unit test suite, and Next.js production build verification on Node 20 with pnpm 10.17.1.
+  - `deploy-preview` job deploying Vercel pull request previews when `VERCEL_TOKEN` secret is configured.
+  - `deploy-production` job deploying production releases on push to `main` when `VERCEL_TOKEN` secret is configured.
+- **`vercel.json`**:
+  - Declared `nextjs` framework and `pnpm run build:vercel` build command.
+- **`package.json`**:
+  - Added `"build:vercel": "if [ -n \"$CONVEX_DEPLOY_KEY\" ]; then npx convex deploy --cmd 'next build'; else next build; fi"` script.
+
+### Verification Proof
+- `pnpm typecheck` — 0 TypeScript errors.
+- `pnpm test` — 92 unit and component tests passed across 21 test suites.
+- `pnpm run build:vercel` — Clean Next.js 16 production build.
+- Workflow YAML validated and ready for GitHub Actions execution.
+
 ## 2026-09-23 — Guest analysis & result unlock flow
 
 ### Summary
